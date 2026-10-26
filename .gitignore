@@ -1,0 +1,37 @@
+# deps & builds
+node_modules/
+dist/
+.next/
+target/
+anchor/target/
+
+# secrets — never commit
+.env
+.env.*
+*.pem
+*keypair*.json
+
+# audit exports may contain sensitive session content — commit only after review
+audit/*/raw/
+
+# machine-local skill symlinks (recreate with scripts/setup-skills.sh)
+.agents/skills/safe-solana-builder
+.agents/skills/solana-architect
+.agents/skills/solana-audit-prep
+.agents/skills/solana-build
+.agents/skills/solana-nfts
+.agents/skills/solana-production-readiness
+.agents/skills/solana-security
+.agents/skills/solana-test
+.agents/skills/solana-tokens
+.agents/skills/eth-concepts
+.agents/skills/eth-frontend-ux
+.agents/skills/eth-gas
+.agents/skills/eth-security
+.agents/skills/eth-standards
+.agents/skills/eth-testing
+.agents/skills/eth-tools
+.agents/skills/eth-wallets
+
+# OS
+.DS_Store

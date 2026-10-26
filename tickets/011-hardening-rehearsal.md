@@ -1,0 +1,31 @@
+# Ticket 011: hardening-rehearsal
+
+**Intent:** Demo-day-proof the build. Latency polish pass, kill the weakest feature, record fallback clips for every live beat, and run the two-rehearsal rule: the full 180s storyboard must pass twice consecutively on the record. Also the stretch go/no-go decision point (CCIP/ERC-8004/S3).
+
+**Implements REQs:** REQ-40 final numbers, Q17 two-rehearsal rule (architecture.md §9)
+
+**Files in scope:** `agent/`, `app/` (polish only), `audit/rehearsals/` (new), `docs/cut-list.md` (new)
+
+**Non-goals:** new features. Anything new = automatic FAIL of this ticket's spirit.
+
+**Constraints:**
+- Kill list first: name the weakest feature and cut it (Jia Chen: one magical moment > five half-features). Record in `docs/cut-list.md`.
+- Fallback clips recorded for beats 1–5 (voice, look-at-this, proof, economics, dream) BEFORE rehearsals.
+- Rehearsal = the storyboard script run end-to-end, screen-recorded, latency harness attached.
+- Stretch gate: CCIP/ERC-8004/S3 activate only if rehearsals are green with time to spare.
+
+**Acceptance criteria (each observable):**
+- [ ] p50 < 2.5s warm measured on the real path (verify.txt)
+- [ ] `docs/cut-list.md` names ≥1 cut
+- [ ] Two consecutive clean rehearsal recordings in `audit/rehearsals/`
+- [ ] Stretch go/no-go decision logged in SOULBOUND.md §9
+
+**Verification:**
+```bash
+node agent/scripts/latency-harness.ts --turns 20 --speech --out audit/011-hardening-rehearsal/verify.txt
+```
+
+**Evidence:** `audit/011-hardening-rehearsal/`
+
+---
+*Refresh before execution.*

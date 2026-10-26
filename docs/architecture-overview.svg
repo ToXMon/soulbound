@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 920" font-family="Menlo, Consolas, monospace">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c6cff"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4dd0a7"/>
+    </marker>
+    <marker id="arrD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a97ad"/>
+    </marker>
+  </defs>
+  <style>
+    .band { fill: none; stroke: #262640; stroke-dasharray: 4 4; }
+    .bandlabel { fill: #6a6780; font-size: 11px; letter-spacing: 2px; }
+    .box { fill: #181826; stroke: #3d3560; rx: 10; }
+    .meta { fill: #101c30; stroke: #2c5b9e; }
+    .sol { fill: #221233; stroke: #9945ff; }
+    .base { fill: #101a38; stroke: #3f6cff; }
+    .live { fill: #0f2a24; stroke: #4dd0a7; }
+    .t { fill: #e8e6f0; font-size: 13px; font-weight: bold; }
+    .s { fill: #9a97ad; font-size: 10.5px; }
+    .flow { stroke: #7c6cff; stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+    .async { stroke: #9a97ad; stroke-width: 1.4; fill: none; stroke-dasharray: 6 4; marker-end: url(#arrD); }
+    .chain { stroke: #4dd0a7; stroke-width: 1.6; fill: none; marker-end: url(#arrG); }
+    .lbl { fill: #b8b5cc; font-size: 10px; }
+  </style>
+
+  <rect width="1240" height="920" fill="#0a0a0f"/>
+  <text x="40" y="44" fill="#e8e6f0" font-size="22" font-weight="bold">SOULBOUND — System Overview (D1, canonical)</text>
+  <text x="40" y="64" fill="#9a97ad" font-size="12">solid = synchronous turn path · dashed gray = async · green = on-chain · every box names its owner</text>
+
+  <!-- BAND 1: EXPERIENCE -->
+  <rect class="band" x="30" y="86" width="1180" height="100" rx="12"/>
+  <text class="bandlabel" x="46" y="106">EXPERIENCE</text>
+  <rect class="box" x="200" y="104" width="380" height="64" rx="10"/>
+  <text class="t" x="216" y="130">Browser App</text>
+  <text class="s" x="216" y="148">voice + camera UI · "look at this" trigger</text>
+  <rect class="box" x="660" y="104" width="380" height="64" rx="10"/>
+  <text class="t" x="676" y="130">Character Life Page</text>
+  <text class="s" x="676" y="148">traits · memory proofs · wallet · per-turn cost · model identity</text>
+
+  <!-- BAND 2: TRANSPORT -->
+  <rect class="band" x="30" y="206" width="1180" height="76" rx="12"/>
+  <text class="bandlabel" x="46" y="226">TRANSPORT</text>
+  <rect class="box" x="440" y="218" width="360" height="52" rx="10"/>
+  <text class="t" x="456" y="240">LiveKit (WebRTC)</text>
+  <text class="s" x="456" y="256">audio/video transport · noise cancellation</text>
+
+  <!-- BAND 3: AGENT RUNTIME -->
+  <rect class="band" x="30" y="302" width="1180" height="210" rx="12"/>
+  <text class="bandlabel" x="46" y="322">AGENT RUNTIME — Akash GPU + app server</text>
+  <rect class="meta" x="60" y="338" width="250" height="66" rx="10"/>
+  <text class="t" x="76" y="364">Muse Voice Transcribe</text>
+  <text class="s" x="76" y="354"></text>
+  <text class="s" x="76" y="380">WS streaming STT · diarization</text>
+  <text class="s" x="76" y="394">degrades: "new voice, nice to meet you"</text>
+  <rect class="meta" x="340" y="338" width="260" height="66" rx="10"/>
+  <text class="t" x="356" y="364">Muse Spark 1.3 — Brain</text>
+  <text class="s" x="356" y="380">tool calls · structured memory write</text>
+  <text class="s" x="356" y="395">search grounding · model identity shown</text>
+  <rect class="box" x="630" y="338" width="240" height="66" rx="10"/>
+  <text class="t" x="646" y="364">VoxCPM2 TTS (Akash)</text>
+  <text class="s" x="646" y="380">voice designed by Spark, seed locked</text>
+  <text class="s" x="646" y="394">prewarmed · replaceable interface</text>
+  <rect class="meta" x="900" y="338" width="280" height="66" rx="10"/>
+  <text class="t" x="916" y="364">SAM 3.1 — Eyes</text>
+  <text class="s" x="916" y="380">on-demand frame only (never continuous)</text>
+  <text class="s" x="916" y="394">mask → observation → memory w/ provenance</text>
+
+  <rect class="box" x="200" y="428" width="300" height="64" rx="10"/>
+  <text class="t" x="216" y="454">Memory Graph (off-chain)</text>
+  <text class="s" x="216" y="470">versioned episodic records · supersede,</text>
+  <text class="s" x="216" y="484">never delete · raw media session-scoped</text>
+  <rect class="box" x="540" y="428" width="240" height="64" rx="10"/>
+  <text class="t" x="556" y="454">Merkle Batcher</text>
+  <text class="s" x="556" y="470">leaves = approved memory hashes</text>
+  <text class="s" x="556" y="484">root per session/epoch</text>
+
+  <!-- BAND 4: META / INFERENCE CLOUD -->
+  <rect class="band" x="30" y="532" width="1180" height="92" rx="12"/>
+  <text class="bandlabel" x="46" y="552">INFERENCE — 100% Meta in product path</text>
+  <rect class="meta" x="60" y="560" width="200" height="50" rx="10"/>
+  <text class="t" x="76" y="581">Meta Model API</text>
+  <text class="s" x="76" y="596">Spark · Voice · Image · SAM · Wonder</text>
+  <rect class="meta" x="290" y="560" width="210" height="50" rx="10"/>
+  <text class="t" x="306" y="581">Baseten</text>
+  <text class="s" x="306" y="596">Muse Spark Open (subconscious)</text>
+  <rect class="box" x="530" y="560" width="230" height="50" rx="10"/>
+  <text class="t" x="546" y="581">Dream Scheduler (cron)</text>
+  <text class="s" x="546" y="596">deterministic → Wonder dream cycle</text>
+  <rect class="box" x="790" y="560" width="220" height="50" rx="10"/>
+  <text class="t" x="806" y="581">Muse Image</text>
+  <text class="s" x="806" y="596">anchored portraits · memory snapshots</text>
+
+  <!-- BAND 5: CHAINS -->
+  <rect class="band" x="30" y="644" width="1180" height="230" rx="12"/>
+  <text class="bandlabel" x="46" y="664">ON-CHAIN TRUST BOUNDARY — everything above is untrusted input; chains verify signatures + roots only</text>
+
+  <rect class="sol" x="60" y="678" width="560" height="180" rx="12"/>
+  <text class="t" x="80" y="704" fill="#c89bff">Solana devnet — identity &amp; memory lineage</text>
+  <rect class="sol" x="80" y="716" width="250" height="128" rx="10"/>
+  <text class="t" x="96" y="740">Anchor program</text>
+  <text class="s" x="96" y="758">initialize_character</text>
+  <text class="s" x="96" y="774">commit_memory_root</text>
+  <text class="s" x="96" y="790">evolve_traits (oracle-gated)</text>
+  <text class="s" x="96" y="806">crank_heartbeat (permissionless,</text>
+  <text class="s" x="96" y="820">pays caller from vault PDA)</text>
+  <rect class="sol" x="350" y="716" width="250" height="64" rx="10"/>
+  <text class="t" x="366" y="740">Metaplex Core asset</text>
+  <text class="s" x="366" y="756">= the character (canonical identity)</text>
+  <text class="s" x="366" y="770">Attributes: traits · life stage · mood</text>
+  <rect class="sol" x="350" y="792" width="250" height="52" rx="10"/>
+  <text class="t" x="366" y="814">Token-2022 receipt</text>
+  <text class="s" x="366" y="830">non-transferable · bond to owner wallet</text>
+
+  <rect class="base" x="660" y="678" width="520" height="180" rx="12"/>
+  <text class="t" x="680" y="704" fill="#7da2ff">Base Sepolia — economic life (x402)</text>
+  <rect class="base" x="680" y="716" width="160" height="60" rx="10"/>
+  <text class="t" x="694" y="740">Character wallet</text>
+  <text class="s" x="694" y="756">spending-capped</text>
+  <text class="s" x="694" y="769">kill switch</text>
+  <rect class="base" x="860" y="716" width="150" height="60" rx="10"/>
+  <text class="t" x="874" y="740">x402 paywall</text>
+  <text class="s" x="874" y="756">in front of OUR</text>
+  <text class="s" x="874" y="769">Meta backend</text>
+  <rect class="base" x="1030" y="716" width="140" height="60" rx="10"/>
+  <text class="t" x="1044" y="740">Facilitator</text>
+  <text class="s" x="1044" y="756">EIP-3009 USDC</text>
+  <text class="s" x="1044" y="769">settle on-chain</text>
+  <text class="s" x="680" y="806">⚠ payment NEVER gates speech — failure ⇒ conversation continues, receipt marked "unpaid"</text>
+  <text class="s" x="680" y="824">stretch (cut unless Days 1–7 early): CCIP root mirror to Base · ERC-8004 registry</text>
+
+  <!-- FLOWS -->
+  <!-- audio in -->
+  <path class="flow" d="M390,136 L440,232"/>
+  <text class="lbl" x="396" y="186">mic / cam</text>
+  <!-- livekit to VT -->
+  <path class="flow" d="M500,270 L220,338"/>
+  <text class="lbl" x="270" y="300">audio stream</text>
+  <!-- VT to brain -->
+  <path class="flow" d="M310,371 L340,371"/>
+  <text class="lbl" x="312" y="362">turns</text>
+  <!-- brain to TTS -->
+  <path class="flow" d="M600,371 L630,371"/>
+  <text class="lbl" x="602" y="362">text</text>
+  <!-- TTS back to livekit -->
+  <path class="flow" d="M700,338 L640,270"/>
+  <text class="lbl" x="664" y="300">audio out</text>
+  <!-- brain <-> memory graph -->
+  <path class="flow" d="M420,404 L380,428"/>
+  <path class="flow" d="M380,404 L420,428" opacity="0"/>
+  <text class="lbl" x="382" y="420">recall / write</text>
+  <!-- memory graph -> merkle -->
+  <path class="flow" d="M500,460 L540,460"/>
+  <!-- merkle -> solana -->
+  <path class="chain" d="M660,470 L400,716"/>
+  <text class="lbl" x="470" y="620">commit_memory_root (async)</text>
+  <!-- dream scheduler -->
+  <path class="async" d="M645,610 L470,700 L470,716"/>
+  <text class="lbl" x="520" y="660">dream cycle: read graph → trait proposal</text>
+  <path class="async" d="M645,560 L400,428"/>
+  <text class="lbl" x="700" y="500">reads memory graph</text>
+  <!-- evolve traits -->
+  <path class="chain" d="M330,760 L350,758"/>
+  <text class="lbl" x="330" y="748" fill="#4dd0a7">mutates</text>
+  <!-- x402 payment loop -->
+  <path class="flow" d="M470,338 L740,300 L740,300 L760,716"/>
+  <text class="lbl" x="748" y="500">pays per inference</text>
+  <path class="chain" d="M840,746 L860,746"/>
+  <path class="chain" d="M1010,746 L1030,746"/>
+  <path class="async" d="M940,716 L500,404"/>
+  <text class="lbl" x="900" y="540">settled ⇒ inference streams</text>
+  <!-- meta api up -->
+  <path class="flow" d="M160,560 L160,404"/>
+  <path class="flow" d="M395,560 L460,404"/>
+  <!-- image to core asset metadata -->
+  <path class="async" d="M900,610 L560,700 L560,716"/>
+  <text class="lbl" x="820" y="660">portrait URI / evolution render</text>
+  <!-- life page reads -->
+  <path class="async" d="M850,168 L850,300 L850,660 L850,678" opacity="0"/>
+  <path class="async" d="M760,104 L700,64 L1030,64 L1030,678"/>
+  <text class="lbl" x="1038" y="380">reads: traits · roots · receipts · balance</text>
+  <!-- SAM frame -->
+  <path class="flow" d="M580,136 L700,232 L990,338"/>
+  <text class="lbl" x="880" y="290">"look at this" frame</text>
+
+  <!-- legend -->
+  <rect x="40" y="884" width="10" height="10" fill="#7c6cff"/><text class="lbl" x="56" y="892">synchronous turn path</text>
+  <rect x="220" y="884" width="10" height="10" fill="#9a97ad"/><text class="lbl" x="236" y="892">async / background</text>
+  <rect x="380" y="884" width="10" height="10" fill="#4dd0a7"/><text class="lbl" x="396" y="892">on-chain transaction</text>
+  <rect x="520" y="884" width="10" height="10" fill="#2c5b9e"/><text class="lbl" x="536" y="892">Meta model</text>
+  <rect x="640" y="884" width="10" height="10" fill="#9945ff"/><text class="lbl" x="656" y="892">Solana</text>
+  <rect x="730" y="884" width="10" height="10" fill="#3f6cff"/><text class="lbl" x="746" y="892">Base</text>
+</svg>
