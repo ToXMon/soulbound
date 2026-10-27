@@ -1,6 +1,7 @@
 # CCIP 2.0 LinkLab — mined notes for SOULBOUND
 
 Source: "Build Faster, More Secure Cross-Chain Applications with CCIP 2.0" — Chainlink LinkLab livestream, recorded 2026-10-22 (Dave + Julian/ETH Labs). Transcript: YouTube ASR (expect recognition errors). Mined 2026-10-26 for the CCIP stretch goal (architecture.md §14). **CCIP remains CUT unless Days 1–7 finish early — this file is preparation, not scope.**
+**Verified 2026-10-27:** original transcript file (`/tmp/38D26D97-BA7F-4236-9FD5-128209EBE013.txt`, 713 lines) re-read in full; every fact below checked against it. Live numbers from the demo: full finality Sepolia→Fuji estimated 16m27s, completed 14m39s; FTF (5 confirmations) estimated 1m07s, completed 1m19s; Chainlink Local ~3s.
 
 ## What matters for us
 
