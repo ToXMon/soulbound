@@ -26,6 +26,7 @@
 - [ ] Diarization-off or ambiguous attribution → UI greets as stranger, loop continues without error (REQ-42)
 - [ ] `agent/` measures and logs per-turn STT→reply latency for a 20-turn scripted run (REQ-40 harness; numbers land in `audit/001-voice-loop-skeleton/verify.txt`)
 - [ ] `docs/built-vs-borrowed.md` lists every borrowed component
+- [ ] Owner round-trip: Tolu speaks into his Mac mic and reads the reply on that Mac (real hardware, headset check) — demo-hardware criterion ratified 2026-10-27
 
 **Verification (exact commands AdaL will run):**
 ```bash

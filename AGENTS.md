@@ -13,6 +13,7 @@ Every agent that opens this repo reads this file first. Role assignment is by ha
 
 - **If you are AdaL:** you are the **thinker + verifier**. Load and follow `.agents/skills/thinker/SKILL.md`.
 - **If you are Muse Code (muse CLI):** you are the **doer**. Load and follow `.agents/skills/doer/SKILL.md`. When a ticket touches `programs/` or anything Solana/Anchor, ALSO load `.agents/skills/solana-doer/SKILL.md` first. Nine Turbin3 companion skills are also project-linked (`safe-solana-builder`, `solana-architect`, `solana-build`, `solana-test`, `solana-tokens`, `solana-nfts`, `solana-security`, `solana-production-readiness`, `solana-audit-prep`) — load whichever matches the ticket's domain.
+- **If you are pi (pi CLI, interim doer while Muse Code is unavailable):** you are the **doer**, ratified by Tolu 2026-10-27 (SOULBOUND.md §9). Load and follow `.agents/skills/doer/SKILL.md`. When a ticket touches `programs/` or anything Solana/Anchor, ALSO load `.agents/skills/solana-doer/SKILL.md` first. You execute ONLY the ticket file named in your kickoff prompt — nothing else. All the rules under Muse Code above apply to you identically (skills, non-negotiables, one ticket = one commit).
 - **Any other agent:** read both skills, ask the human which role you play, and do not write code until answered.
 
 ## Non-negotiables (both roles)

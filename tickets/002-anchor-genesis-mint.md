@@ -11,7 +11,7 @@
 **Non-goals:** `commit_memory_root`, `evolve_traits`, `crank_heartbeat` (later tickets), client SDK, any frontend. No mainnet anything.
 
 **Constraints:**
-- Anchor 0.31.x; LiteSVM for the local test suite (per Turbin3 stack).
+- Anchor: current 1.x line (anchor-cli 1.2.x, refreshed 2026-10-27 — the original 0.31.x pin is stale; pin the exact anchor-lang version chosen in `docs/devnet.md` at kickoff). LiteSVM current (TS 1.6.x / Rust 0.18, Agave 4.3) for the local test suite. Verify Token-2022 non-transferable extension + Metaplex Core CPI compatibility with the pinned Anchor 1.x before writing instruction logic; report any incompatibility in the session log instead of downgrading Anchor.
 - Token-2022 receipt uses the **non-transferable extension** — verify a transfer attempt fails.
 - Metaplex Core via its official SDK/CPI; genesis Attributes = `{ life_stage: "born", mood: "curious", memory_epoch: 0, trait_vector: <genesis> }`.
 - Checked math everywhere; failed instruction changes no state.

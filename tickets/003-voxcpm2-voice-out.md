@@ -26,6 +26,7 @@
 - [ ] Full loop: speak → character answers ALOUD in its locked voice (REQ-40: latency harness re-run, p50 < 2.5s warm, logged to verify.txt)
 - [ ] Akash `deploy.yml` validates (`akash` CLI dry-run / provider attr check) and the endpoint survives a restart (prewarm probe)
 - [ ] `docs/voice.md` contains the Spark-written persona description + seed + endpoint
+- [ ] Owner round-trip ALOUD on the Mac: Tolu speaks, hears the character's voice from his Mac speakers (real hardware) — demo-hardware criterion ratified 2026-10-27
 
 **Verification (exact commands AdaL will run):**
 ```bash
