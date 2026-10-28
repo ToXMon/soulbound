@@ -15,6 +15,7 @@
 - Stretch gate: CCIP/ERC-8004/S3 activate only if rehearsals are green with time to spare.
 
 **Acceptance criteria (each observable):**
+- [ ] (added 2026-10-28) Jev dev-harness judge run over recorded demo traces: in-persona consistency score for every scripted beat recorded to `audit/rehearsals/jev-scores.json`; any beat scoring below the harness threshold is flagged in the review, not silently shipped (REQ-73 adjacent; dev harness — non-Meta model allowed)
 - [ ] p50 < 2.5s warm measured on the real path (verify.txt)
 - [ ] `docs/cut-list.md` names ≥1 cut
 - [ ] Two consecutive clean rehearsal recordings in `audit/rehearsals/`

@@ -19,7 +19,7 @@ Every agent that opens this repo reads this file first. Role assignment is by ha
 ## Non-negotiables (both roles)
 
 1. **Authority order:** REQs in `docs/architecture.md` > ticket > your judgment. Agents never edit REQs, tickets, `SOULBOUND.md` §9, or `audit/`.
-2. **Model purity:** all product inference is Meta models (Spark 1.3, Voice Transcribe, Image, SAM 3.1, Wonder; Spark Open via Baseten `muse-spark-open-1026`). Never the contributor tier for personal data. Non-Meta models only in dev harnesses, never in the product path.
+2. **Model purity:** all product inference is Meta models (Spark 1.3, Voice Transcribe, Image, SAM 3.1, Wonder; Spark Open via Baseten `muse-spark-open-1026`). Never the contributor tier for personal data. Non-Meta models only in dev harnesses, never in the product path. **Carve-out (ratified by Tolu 2026-10-28):** tiny bounded non-Meta decision models (e.g. Jev) are permitted in the product path for routing/gating/classification only — they never generate content, never replace Meta inference, and their decisions on personal-memory content are always subordinate to Spark's structured-output verdict as source of truth.
 3. **No secrets in the repo.** `.env.example` documents variables; real values never commit.
 4. **Evidence honesty:** never fabricate outputs, tx hashes, addresses, or test results. Unverified claims are labeled unverified (bounded-payments rule).
 5. **Ponytail discipline:** reuse > stdlib > platform feature > dependency > minimal new code. Never cut validation, security, or accessibility. Small diffs win.

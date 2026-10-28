@@ -219,6 +219,11 @@ sequenceDiagram
 | REQ-51 | Produce a valid inclusion proof for any committed memory | Proof verifies against on-chain root |
 | REQ-52 | Fail verification loudly for a tampered memory | Modified byte → proof fails |
 
+### UC-7 Private memory challenge (Arcium MXE) — added 2026-10-28, ratified as MUST-HAVE by Tolu
+| REQ-53 | Answer a challenge about a memory's content via an Arcium MXE computation over encrypted memory shares, never exposing plaintext to any single node | MXE callback returns signed boolean; no plaintext in any node, log, or account |
+| REQ-54 | Record the signed challenge result on-chain, linked to the memory epoch and root | Result account exists, signature verifies against the MXE/cluster |
+| REQ-55 | Fail a challenge loudly on tampered memories or MXE protocol fault (abort semantics) | Tamper → loud failure; fault → explicit error state, no silent pass |
+
 ### UC-6 Payment
 | REQ | The system shall | Test |
 | --- | --- | --- |
