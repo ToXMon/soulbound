@@ -8,6 +8,7 @@ anchor/target/
 # secrets — never commit
 .env
 .env.*
+!.env.example
 *.pem
 *keypair*.json
 
