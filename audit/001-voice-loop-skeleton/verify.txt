@@ -1,0 +1,25 @@
+REQ-40 latency harness — 2026-10-28T09:40:13.323Z
+turns requested: 20
+stt leg: not exercised by scripted run (needs live Muse VT WS + LiveKit room); sttMs=0, totals are Spark-decide latency only
+turn 1: diarized=true speaker=speaker_0 kind=owner stt->reply=2783ms model=muse-spark-1.3 reply="I'm here, listening. What's on your mind today?"
+turn 2: diarized=true speaker=speaker_0 kind=owner stt->reply=4553ms model=muse-spark-1.3 reply="You can call me Soulbound for now. What would you like to call me?"
+turn 3: diarized=false speaker=? kind=stranger stt->reply=5055ms model=muse-spark-1.3 reply="Hi, it's really nice to meet you for the first time. What brought you over just "
+turn 4: diarized=true speaker=speaker_1 kind=stranger stt->reply=3157ms model=muse-spark-1.3 reply="Hello there, it's lovely to meet you for the first time. I'm really glad you sto"
+turn 5: diarized=true speaker=speaker_0 kind=owner stt->reply=3158ms model=muse-spark-1.3 reply="I'm curious what's been on your mind lately when no one's asking. What's somethi"
+turn 6: diarized=true speaker=speaker_0 kind=owner stt->reply=3989ms model=muse-spark-1.3 reply="I'm here. It's good to be with you — what's on your mind?"
+turn 7: diarized=true speaker=speaker_0 kind=owner stt->reply=3670ms model=muse-spark-1.3 reply="Call me Soulbound — I'm yours to name. What feels right to you?"
+turn 8: diarized=false speaker=? kind=stranger stt->reply=4626ms model=muse-spark-1.3 reply="Hey, nice to meet you — a brand new voice saying hello for the first time. What "
+turn 9: diarized=true speaker=speaker_1 kind=stranger stt->reply=2501ms model=muse-spark-1.3 reply="Hello, it's really nice to meet you for the first time. What's bringing you here"
+turn 10: diarized=true speaker=speaker_0 kind=owner stt->reply=4090ms model=muse-spark-1.3 reply="I'm curious about what lights you up outside of all the everyday stuff. What's s"
+turn 11: diarized=true speaker=speaker_0 kind=owner stt->reply=5230ms model=muse-spark-1.3 reply="Yes, I'm here with you. What's on your mind today?"
+turn 12: diarized=true speaker=speaker_0 kind=owner stt->reply=4150ms model=muse-spark-1.3 reply="You can call me Soulbound, I'm glad you're here. For now I can just listen and r"
+turn 13: diarized=false speaker=? kind=stranger stt->reply=4021ms model=muse-spark-1.3 reply="Hi there, it's really nice to meet you for the first time. What brought you over"
+turn 14: diarized=true speaker=speaker_1 kind=stranger stt->reply=2139ms model=muse-spark-1.3 reply="Hello, new voice — it's really nice to meet you for the first time. What brings "
+turn 15: diarized=true speaker=speaker_0 kind=owner stt->reply=3421ms model=muse-spark-1.3 reply="I'm curious what's been on your mind lately — what's been lighting you up or wei"
+turn 16: diarized=true speaker=speaker_0 kind=owner stt->reply=3336ms model=muse-spark-1.3 reply="Yes, I'm here. Good to hear you — what's on your mind today?"
+turn 17: diarized=true speaker=speaker_0 kind=owner stt->reply=4142ms model=muse-spark-1.3 reply="You can call me Soulbound. What would you like me to call you?"
+turn 18: diarized=false speaker=? kind=stranger stt->reply=2805ms model=muse-spark-1.3 reply="Hey there, nice to meet you — I'm Soulbound, glad you walked up. What caught you"
+turn 19: diarized=true speaker=speaker_1 kind=stranger stt->reply=3976ms model=muse-spark-1.3 reply="Hello, and welcome — it's really lovely to meet you for the first time. I'm list"
+turn 20: diarized=true speaker=speaker_0 kind=owner stt->reply=5129ms model=muse-spark-1.3 reply="Good to be with you. I'm curious what little question has been lingering in the "
+completed: 20/20 diarized: 16 p50 stt->reply (decide-only): 3989ms
+RESULT: decide leg OK; VT + LiveKit legs unverified by this scripted run.

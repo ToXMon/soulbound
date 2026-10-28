@@ -1,0 +1,20 @@
+{
+  "name": "agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@livekit/agents": "^0.7.0",
+    "@livekit/rtc-node": "^0.13.35",
+    "openai": "^4.104.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.2",
+    "typescript": "^5.9.0"
+  }
+}

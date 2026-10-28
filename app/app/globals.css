@@ -1,0 +1,15 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #101312; color: #e8ebe8; font-family: ui-sans-system, system-ui, sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+h1 { font-size: 28px; letter-spacing: 0.04em; margin: 0 0 4px; }
+.sub { color: #9aa39c; margin: 0 0 24px; }
+.stage { display: flex; gap: 16px; align-items: center; border: 1px solid #2a2f2c; padding: 16px; background: #161a18; }
+.avatar { width: 72px; height: 72px; flex: none; display: grid; place-items: center; font-size: 32px; background: #223028; color: #b7e4c7; border: 1px solid #33503f; }
+button { background: #b7e4c7; color: #101312; border: 0; padding: 10px 18px; font-weight: 600; cursor: pointer; }
+button[disabled] { opacity: 0.5; cursor: default; }
+.status { font-size: 14px; color: #9aa39c; }
+.log { margin-top: 24px; display: grid; gap: 10px; }
+.line { border: 1px solid #2a2f2c; background: #161a18; padding: 12px 14px; font-size: 15px; line-height: 1.5; }
+.line .who { font-size: 12px; color: #9aa39c; display: block; margin-bottom: 4px; }
+.line.reply { border-color: #33503f; }
