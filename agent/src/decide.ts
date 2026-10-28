@@ -12,8 +12,8 @@ export interface TurnReply {
 let client: OpenAI | null = null;
 
 function spark(): OpenAI {
-  const apiKey = process.env.MODEL_API_KEY;
-  if (!apiKey) throw new Error("MODEL_API_KEY is not set (see .env.example)");
+  const apiKey = process.env.MODEL_API_KEY ?? process.env.META_API_KEY;
+  if (!apiKey) throw new Error("MODEL_API_KEY (or META_API_KEY) is not set (see .env.example)");
   client ??= new OpenAI({
     apiKey,
     baseURL: process.env.MODEL_API_BASE_URL ?? "https://api.meta.ai/v1",
