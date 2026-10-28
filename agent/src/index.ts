@@ -21,9 +21,10 @@ export default defineAgent({
       if (track.kind !== TrackKind.KIND_AUDIO) return;
       void (async () => {
         const stream = new AudioStream(track, 16000, 1);
-        // Typed loosely so compilation is robust to SDK typing drift across
-        // @livekit/rtc-node versions (ticket 017); runtime unchanged.
-        const frames = stream as AsyncIterable<{ data: ArrayBufferView }>;
+        // Double-cast through unknown: compiles against any @livekit/rtc-node
+        // typing drift (ticket 017/018); runtime unchanged — frames are
+        // 16-bit PCM views and Buffer.from slices the exact bytes.
+        const frames = stream as unknown as AsyncIterable<{ data: Uint8Array }>;
         for await (const frame of frames) {
           vt.sendAudio(Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength));
         }
