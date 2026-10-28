@@ -23,7 +23,14 @@ Every agent that opens this repo reads this file first. Role assignment is by ha
 3. **No secrets in the repo.** `.env.example` documents variables; real values never commit.
 4. **Evidence honesty:** never fabricate outputs, tx hashes, addresses, or test results. Unverified claims are labeled unverified (bounded-payments rule).
 5. **Ponytail discipline:** reuse > stdlib > platform feature > dependency > minimal new code. Never cut validation, security, or accessibility. Small diffs win.
-6. **One ticket = one commit** referencing the ticket id. Work happens only under a ticket.
+6. **One ticket = one commit** referencing the ticket id. Work happens only under a ticket. **Doer commits (ratified 2026-10-28):** the doer makes its own commit when the ticket's work is complete, authored as the repo's configured identity (Tolu), with this trailer block so GitHub visibly attributes AI execution:
+   ```
+   Implemented by Muse Code (muse-spark-1.3) — execution evidence:
+   audit/NNN-slug/muse-session.log
+
+   Co-authored-by: Muse Code <muse@meta.ai>
+   ```
+   The thinker's verification/review changes are separate later commits without the trailer. Never commit secrets; never commit without the ticket id in the subject.
 7. **x402 never gates speech.** Payment failure → conversation continues, receipt `unpaid`.
 
 ## Common Commands
