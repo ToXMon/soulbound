@@ -9,27 +9,36 @@ import { runTurn } from "./pipeline.js";
 
 export default defineAgent({
   entry: async (ctx) => {
-    await ctx.connect();
+    // Ticket 018: register the track handler BEFORE ctx.connect() so a mic
+    // track published by an already-present participant is never missed, and
+    // scan for already-subscribed audio tracks after joining (late discovery).
     const vt = new VoiceTranscribeStream(async (turn) => {
       const rec = await runTurn(turn);
       const data = new TextEncoder().encode(JSON.stringify(rec));
       await ctx.agent?.publishData(data, { reliable: true, topic: "turn" });
     });
-    await vt.connect();
-    ctx.addShutdownCallback(async () => { vt.close(); });
-
-    ctx.room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+    const feed = (track: RemoteTrack) => {
       if (track.kind !== TrackKind.KIND_AUDIO) return;
       void (async () => {
         const stream = new AudioStream(track, 16000, 1);
-        // Typed as AsyncIterable so compilation is robust to SDK typing drift
-        // across @livekit/rtc-node versions (ticket 017); runtime unchanged.
-        const frames = stream as AsyncIterable<{ data: Uint8Array }>;
+        // Typed loosely so compilation is robust to SDK typing drift across
+        // @livekit/rtc-node versions (ticket 017); runtime unchanged.
+        const frames = stream as AsyncIterable<{ data: ArrayBufferView }>;
         for await (const frame of frames) {
           vt.sendAudio(Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength));
         }
       })();
-    });
+    };
+    ctx.room.on(RoomEvent.TrackSubscribed, feed);
+    await ctx.connect();
+    // Late discovery: audio tracks already subscribed before our handler existed.
+    for (const p of ctx.room.remoteParticipants ?? []) {
+      for (const pub of (p as { trackPublications?: Map<string, { track?: RemoteTrack }> }).trackPublications?.values() ?? []) {
+        if (pub.track) feed(pub.track);
+      }
+    }
+    await vt.connect();
+    ctx.addShutdownCallback(async () => { vt.close(); });
     await ctx.waitForParticipant();
     console.log("[agent] participant in room; voice loop live (text replies only — TTS is Ticket 003)");
   },
