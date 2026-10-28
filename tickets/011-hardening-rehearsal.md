@@ -12,7 +12,8 @@
 - Kill list first: name the weakest feature and cut it (Jia Chen: one magical moment > five half-features). Record in `docs/cut-list.md`.
 - Fallback clips recorded for beats 1–5 (voice, look-at-this, proof, economics, dream) BEFORE rehearsals.
 - Rehearsal = the storyboard script run end-to-end, screen-recorded, latency harness attached.
-- Stretch gate: CCIP/ERC-8004/S3 activate only if rehearsals are green with time to spare.
+- Stretch gate: CCIP/ERC-8004 CUT (judge-aligned 2026-10-28). Subagent fanout permitted in this phase for read-only checks only (one child: latency, one: explorer roots, one: paywall receipts) — never core-ticket writers.
+- **Prewarm gate (added 2026-10-28):** every live beat starts from a warm path — VoxCPM2 endpoint prewarmed (003 probe), facilitator reachable, MXE/proof path warm. A cold-start failure during rehearsal counts as a rehearsal failure.
 
 **Acceptance criteria (each observable):**
 - [ ] (added 2026-10-28) Jev dev-harness judge run over recorded demo traces: in-persona consistency score for every scripted beat recorded to `audit/rehearsals/jev-scores.json`; any beat scoring below the harness threshold is flagged in the review, not silently shipped (REQ-73 adjacent; dev harness — non-Meta model allowed)
