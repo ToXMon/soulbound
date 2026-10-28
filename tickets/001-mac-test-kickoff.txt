@@ -1,0 +1,21 @@
+TASK (desktop machine setup — not a code ticket, local dev environment only):
+
+Goal: run the SOULBOUND voice-loop test fully locally on this Mac: LiveKit dev server + agent worker + Next.js app, then verify the round-trip. The repo is at ~/Desktop/soulbound (already cloned). Do NOT push anything; do NOT edit files under audit/; do NOT commit.
+
+Steps:
+1. Install the LiveKit dev server if missing: `brew install livekit`. If brew/livekit is unavailable, fall back to docker: `docker run --rm -p 7880:7880 livekit/livekit-server --dev --bind 0.0.0.0`.
+2. Start it: `livekit-server --dev` (or the docker command). IMPORTANT: copy the EXACT API key/secret the server prints at boot (dev mode prints them; do not assume defaults).
+3. Write the two env files from scratch (overwrite), using the key/secret from step 2:
+   - ~/Desktop/soulbound/agent/.env with keys META_API_KEY, LIVEKIT_URL (ws://localhost:7880), LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+     (META_API_KEY value: LLM_1346683150739347_qeqI8Rb5UAMFx0ChODyeHsH0xM0)
+   - ~/Desktop/soulbound/app/.env.local with keys LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, NEXT_PUBLIC_LIVEKIT_URL (all LiveKit values same as agent, URL ws://localhost:7880)
+4. Rebuild and start the agent worker in the background (nohup or a new terminal): `cd ~/Desktop/soulbound/agent && pnpm build` then `node --import ./polyfill-error-event.mjs dist/index.js`. If it fails to start, check for the Node ErrorEvent global issue (known: this repo ships agent/polyfill-error-event.mjs exactly for that; --import flag already handles it). Success = log line "registered worker" and later "participant in room; voice loop live".
+5. Start the app in the background: `cd ~/Desktop/soulbound/app && pnpm dev` (port 3000 must be free — kill any stale process on it).
+6. Verify, in order, and report each result:
+   a. `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000` → expect 200
+   b. `curl -s "http://localhost:3000/api/token?room=soulbound"` → expect a JSON token
+   c. Tell the user to open http://localhost:3000 in their browser, ALLOW MICROPHONE, join the room, and speak one sentence.
+   d. The pass signal: the user sees their speech transcribed as a diarized transcript line in the UI AND Soulbound's text reply rendered. On the agent side, the log shows live VT turns.
+7. Troubleshooting notes: if the browser fails to fetch the token, confirm the app was started AFTER .env.local was written (restart it). If mic is denied, check System Settings → Privacy → Microphone → the browser is enabled. Do not modify any source files — this is environment configuration only.
+
+Report: a short summary of each step's result + the final verdict (ROUND-TRIP WORKS / FAILED at step N with the exact error).
