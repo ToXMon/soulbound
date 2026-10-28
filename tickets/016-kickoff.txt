@@ -1,0 +1,11 @@
+Execute ticket tickets/016-vt-protocol-fix.md exactly. You are the doer: load .agents/skills/doer/SKILL.md and .agents/skills/meta-model-api/SKILL.md first. This fixes Ticket 001's blocking failure - read audit/001-voice-loop-skeleton/review.md section F1 for the verified findings.
+
+Hard requirements:
+- Rewrite agent/src/observe.ts to the cookbook protocol: wss://api.meta.ai/v1/asr/realtime, auth inside the handshake JSON as authorization:{accessToken}, handshake {mode:"DIARIZATION", audioEncoding:"PCM_16KHZ", model:"muse-voice-transcribe-1.0", partialMode:"CUMULATIVE"}, binary PCM frames, end with {"type":"endStream"}, parse the speechStart -> partials -> speaker -> speechEnd -> speechComplete lifecycle keyed by turnId, speaker labels are bare letters ("A","B").
+- Owner = first diarized speaker letter seen in the session (env-configurable); any other letter or none = stranger greeting, loop continues.
+- The latency harness must replay a real WAV through the websocket so sttMs > 0 is real VT output, not scripted labels.
+- Do NOT write, create, or edit any file under audit/ - that directory is thinker-only. Put self-checks in your printed output only.
+
+The LIVEKIT_API_KEY and META_API_KEY are already in agent/.env. Credentials for the probe are live - test the real endpoint, do not mock it.
+
+When the work is complete, commit it yourself per AGENTS.md non-negotiable 6: subject references ticket 016, and include the full doer-attribution trailer block (Implemented by Muse Code + Co-authored-by). Then print the latency harness output and every file you touched.
