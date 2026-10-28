@@ -1,0 +1,36 @@
+# Ticket 016 — independent verification (AdaL, 2026-10-28)
+
+## 1. Live VT probe (doer's new code path, real endpoint)
+$ cd agent && node scripts/vt-probe.mjs   (env: agent/.env)
+sessionId voyager/duplex/74B005CC1D1A40FE99A412E15A8B15A4
+PROBE PASS: handshake accepted
+=> REQ: cookbook handshake accepted; contrast with FAIL review F1 (old protocol rejected).
+
+## 2. WAV-replay harness (real VT leg)
+$ node scripts/latency-harness.ts --turns 5 --wav fixtures/hello-two-speaker.wav
+mode: wav-replay (live Muse VT WebSocket; sttMs is real VT output)
+vt turns collected: 8 speakers=A,B
+turns 1-5: diarized=true; speaker A => kind=owner; speaker B => kind=stranger (greeting as new voice)
+sttMs per turn: 5543 / 4959 / 5678 / 5466 / 5608   (all > 0 — real VT output)
+completed: 5/5  p50 stt->reply: 9850ms  RESULT: OK (wav-replay, VT leg live)
+NOTE (honest labeling): wav-replay sttMs includes the fixture's own audio span; the 9.8s
+stt->reply is replay-mode latency, NOT the warm-mic path number. REQ-40's p50<2.5s bar is
+measured on the live mic path (Ticket 003/011), not here.
+
+## 3. Ambiguity / stranger path (REQ-42)
+Speaker B turns greeted as first-time stranger; loop continued, no errors. Single-speaker
+degradation path present in observe.ts (fallback lastTurnId handling).
+
+## 4. Env documentation tracking
+$ git check-ignore agent/.env.example -> NOT ignored (thinker's .gitignore exception landed)
+$ git ls-files -> agent/.env.example tracked ✓ (22 lines, every var documented)
+
+## 5. Build
+$ pnpm build -> agent tsc OK; app next build OK (5/5 pages)
+
+## 6. Doer commit
+3a9ce65 "fix(agent): cookbook VT protocol + real-WAV harness (ticket 016)"
+- Author: Tolu (repo identity) ✓; Co-authored-by: Muse Code <muse@meta.ai> ✓
+- Trailer points at audit/016-vt-protocol-fix/muse-session.log (to be exported by Tolu)
+- Diff confined to ticket scope: observe.ts, latency-harness.ts, .env.example, fixture, vt-probe.mjs, built-vs-borrowed.md
+- Working tree clean at review time ✓
