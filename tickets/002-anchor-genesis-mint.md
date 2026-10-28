@@ -25,8 +25,10 @@
 
 **Verification (exact commands AdaL will run):**
 ```bash
-cd programs/soulbound && anchor build && anchor test --skip-local-validator  # LiteSVM suite
-solana program show $(grep PROGRAM_ID docs/devnet.md | cut -d= -f2) --url devnet
+cd programs/soulbound && cargo test -p tests -- --test-threads=1   # LiteSVM suite (amended 2026-10-28: anchor 1.2.x `anchor test` does NOT run LiteSVM tests; see audit review)
+/tmp/dk.sh 'cd /w && anchor build'                                  # or host anchor if installed
+curl -s -X POST https://api.devnet.solana.com -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getAccountInfo","params":["<PROGRAM_ID>",{"encoding":"base64"}]}'
 ```
 
 **Evidence:** `audit/002-anchor-genesis-mint/` → `muse-session.log` + `review.md` + `verify.txt` (incl. deploy tx signature)

@@ -1,0 +1,43 @@
+# Ticket 002 — independent verification output (AdaL, 2026-10-28)
+# All commands below were executed by AdaL (thinker), not copied from the doer's report.
+
+## 1. Devnet program account (host curl, no toolchain)
+$ getAccountInfo BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd
+exists: True
+executable: True
+owner: BPFLoaderUpgradeab1e11111111111111111111111
+space: 36
+=> REQ deploys: program is live and executable on devnet.
+
+## 2. anchor build (docker sb-anchor:1.2.1, per programs/soulbound/BUILD.md)
+$ /tmp/dk.sh 'cd /w && anchor build'
+    Finished `release` profile [optimized] target(s) in 1.11s
+(WARN: cdylib+lib crate types preclude LTO — cosmetic, noted, no action)
+=> target/deploy/soulbound.so + target/idl/soulbound.json present.
+
+## 3. LiteSVM suite (independent run)
+$ /tmp/dk.sh 'cd /w && cargo test -p tests -- --nocapture --test-threads=1'
+running 5 tests
+test test_initialize_character::req01_pda_derives_canonically ... ok
+test test_initialize_character::req02_and_req03_core_asset_with_attributes ... ok
+test test_initialize_character::req05_receipt_is_non_transferable ... ok
+test test_initialize_character::req06_duplicate_character_id_rejected ... ok
+test test_initialize_character::req07_genesis_state_and_failed_ix_leaves_no_state ... ok
+test result: ok. 5 passed; 0 failed
+
+## 4. Genesis character observed via docs/devnet.md pins
+- Core asset 8ra3ckcmgWRhFyWBiCz6KPLM76hugAYhjeEzZCxc8fHU (explorer link present)
+- receipt mint KTDQzSUUiT62zdRPceSgzteo5VcfkCfya2otLGCS6YZ, extension "nonTransferable",
+  mint authority revoked, owner ATA balance 1
+- deploy tx 47b5Skfpf2dqB4sZt1zUWpfkAk2a5aJtkLd846DEu5qw92EkkHFieCB4j2joccejyghkU8bWqE4Y9JMK89jhvrGq
+(on-chain fields observed by doer and recorded with explorer links; not re-fetched host-side
+ due to no host solana CLI — labelled: observed-once by doer, pins consistent with suite output)
+
+## 5. Secrets scan over audit/002-anchor-genesis-mint/
+- doer-session.log: 0 key-like strings (sk- pattern); only env-var NAMES (e.g. $ALCHEMY_API_KEY in skill text)
+- repo .gitignore covers *keypair*.json, target/; deploy keypair outside repo (confirmed path ~/.config/solana/)
+
+## Doer-flagged amendments adopted by AdaL
+- Ticket's verification command `anchor test --skip-local-validator` does NOT run LiteSVM
+  under anchor-cli 1.2.1 (it attempts a live deploy). Correct command, now in spec:
+  `cargo test -p tests` / `anchor run test`. Ticket amended by AdaL this date.
