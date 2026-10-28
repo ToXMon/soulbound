@@ -22,7 +22,10 @@ export default defineAgent({
       if (track.kind !== TrackKind.KIND_AUDIO) return;
       void (async () => {
         const stream = new AudioStream(track, 16000, 1);
-        for await (const frame of stream) {
+        // Typed as AsyncIterable so compilation is robust to SDK typing drift
+        // across @livekit/rtc-node versions (ticket 017); runtime unchanged.
+        const frames = stream as AsyncIterable<{ data: Uint8Array }>;
+        for await (const frame of frames) {
           vt.sendAudio(Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength));
         }
       })();
@@ -33,5 +36,7 @@ export default defineAgent({
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  cli.runApp(new WorkerOptions({ agent: import.meta.filename }));
+  // fileURLToPath(import.meta.url) instead of import.meta.filename: portable
+  // across Node builds and @livekit/agents typings (ticket 017).
+  cli.runApp(new WorkerOptions({ agent: fileURLToPath(import.meta.url) }));
 }
