@@ -7,6 +7,7 @@
 // No mock fallback: missing config or a server error is a loud throw.
 import WebSocket from "ws";
 import type { DiarizedTurn } from "./orient.js";
+import { elapsedMs, type VtTiming } from "./latency.js";
 
 interface VtEvent {
   type?: string;
@@ -23,6 +24,7 @@ interface PendingTurn {
   text: string;
   speaker: string | null;
   startedAt: number;
+  speechEndAt: number | null;
   emitted: boolean;
 }
 
@@ -35,7 +37,7 @@ export class VoiceTranscribeStream {
   private streamError: Error | null = null;
   sessionId: string | null = null;
 
-  constructor(private onTurn: (turn: DiarizedTurn, sttMs: number) => void) {}
+  constructor(private onTurn: (turn: DiarizedTurn, sttMs: number, vtTiming?: VtTiming) => void) {}
 
   get encoding(): string {
     return process.env.MUSE_VT_ENCODING ?? "PCM_16KHZ";
@@ -57,16 +59,32 @@ export class VoiceTranscribeStream {
     if (pending.emitted || !pending.text.trim()) return;
     pending.emitted = true;
     if (pending.speaker) this.noteSpeaker(pending.speaker);
+    const completeAt = performance.now();
+    const utterance = elapsedMs(pending.startedAt, completeAt);
+    const vtTiming: VtTiming = {
+      utteranceElapsedMs: utterance === null ? null : Math.round(utterance),
+      speechEndToCompleteMs:
+        pending.speechEndAt === null ? null : elapsedMs(pending.speechEndAt, completeAt),
+      speechEndToCompleteUnavailableReason:
+        pending.speechEndAt === null ? "VT speechEnd event not observed for this turn" : null,
+      vtCompleteAtMs: completeAt,
+    };
+    if (vtTiming.speechEndToCompleteMs !== null) {
+      vtTiming.speechEndToCompleteMs = Math.round(vtTiming.speechEndToCompleteMs);
+    }
+    // sttMs kept for harness compatibility: it is utterance/VT elapsed
+    // (speechStart -> speechComplete), not post-speech recognition delay.
     this.onTurn(
       { speaker: pending.speaker, text: pending.text.trim() },
-      Math.max(1, Math.round(performance.now() - pending.startedAt)),
+      vtTiming.utteranceElapsedMs ?? 0,
+      vtTiming,
     );
   }
 
   private pendingFor(id: string): PendingTurn {
     let p = this.turns.get(id);
     if (!p) {
-      p = { text: "", speaker: null, startedAt: performance.now(), emitted: false };
+      p = { text: "", speaker: null, startedAt: performance.now(), speechEndAt: null, emitted: false };
       this.turns.set(id, p);
     }
     return p;
@@ -138,6 +156,10 @@ export class VoiceTranscribeStream {
           if (target) this.pendingFor(target).speaker = label;
           break;
         }
+        case "speechEnd":
+          // Agent receipt of the VT speechEnd event (not the browser's physical speech end).
+          if (id) this.pendingFor(id).speechEndAt = performance.now();
+          break;
         case "speechComplete":
           if (id) {
             const p = this.pendingFor(id);
@@ -146,7 +168,7 @@ export class VoiceTranscribeStream {
           }
           break;
         default:
-          break; // session / speechEnd / progress: lifecycle only
+          break; // session / progress: lifecycle only
       }
     });
     ws.on("close", () => { this.ws = null; });
