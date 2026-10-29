@@ -24,6 +24,7 @@
 - [ ] Live: one end-to-end challenge on real cluster — callback lands on devnet, result account links epoch + root (REQ-53/54)
 - [ ] Plaintext audit: grep proves no memory content appears in any account data, callback payload, or log line (REQ-53)
 - [ ] explorer link to a challenge-result account in `docs/arcium.md`
+- [ ] (opt-in disclosure, ratified 2026-10-28) Owner can mark one memory "shareable" and generate a disclosure link: the recipient verifies the shared *element* via MXE result without accessing the full memory store; default state of every memory = private (FEATURED demo beat — judges see privacy-then-share live)
 
 **Verification (exact commands AdaL will run):**
 ```bash
