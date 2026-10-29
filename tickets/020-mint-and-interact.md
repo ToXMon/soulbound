@@ -1,4 +1,4 @@
-# Ticket 019: mint-and-interact
+# Ticket 020: mint-and-interact
 
 **Intent:** Judges don't watch a character — they *adopt* one. Connect a Solana wallet in the app, click mint, and `initialize_character` gives them their own personal character (their own Core asset + non-transferable receipt, seeded `["character", ownerWallet, characterId]`). Their character answers in the same voice but keeps ITS OWN memory space, keyed by their wallet. Ratified MUST by Tolu 2026-10-28 ("full functionality in the product UI so judges can mint and interact").
 
@@ -28,4 +28,4 @@ grep "<judge-wallet>" agent/memory index          # memory keyed to judge, not T
 cd agent && pnpm build && pnpm test 2>/dev/null || echo n/a
 ```
 
-**Evidence:** `audit/019-mint-and-interact/{muse-session.log, review.md, verify.txt}`
+**Evidence:** `audit/020-mint-and-interact/{muse-session.log, review.md, verify.txt}`
