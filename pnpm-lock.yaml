@@ -16,6 +16,9 @@ importers:
       '@livekit/rtc-node':
         specifier: ^0.13.35
         version: 0.13.35
+      js-sha3:
+        specifier: ^0.13.0
+        version: 0.13.0
       openai:
         specifier: ^4.104.0
         version: 4.104.0(ws@8.22.0)(zod@3.25.76)
@@ -515,6 +518,9 @@ packages:
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
     engines: {node: '>=10'}
+
+  js-sha3@0.13.0:
+    resolution: {integrity: sha512-v2qy9Guw8XMOYFauObtG1kXLfut7AcSRgBP2rq4R14gVFAO2fW5kjcHcPWkA2IUDbY0cGGZypDMUuP/kkbvNGw==}
 
   livekit-client@2.23.0:
     resolution: {integrity: sha512-j9Kg86nJjBjNFUD+ukp2jwMCGa0k+YD5gU//RzAM+ZY3pbG631QCte7fQjwqWMmtBzhDJL9nKYuOLMv/9IbAxg==}
@@ -1205,6 +1211,8 @@ snapshots:
   jose@6.2.13: {}
 
   joycon@3.1.1: {}
+
+  js-sha3@0.13.0: {}
 
   livekit-client@2.23.0(@types/dom-mediacapture-record@1.0.22):
     dependencies:

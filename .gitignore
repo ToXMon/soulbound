@@ -34,5 +34,9 @@ audit/*/raw/
 .agents/skills/eth-tools
 .agents/skills/eth-wallets
 
+# private runtime memory stores (Ticket 004) — never commit personal memory
+memory-store/
+*/memory-store/
+
 # OS
 .DS_Store

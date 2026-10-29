@@ -20,4 +20,7 @@ else in the repo is new work written for SOULBOUND.
 | Akash tenant deployment method | `akash-network/akash-skill` @ `7bc7e5aa11edccbe285a95bab2dd5dbb5f6cccac` | Official skill/guides reference | Pricing, compute-resource, lifecycle, wallet and GPU guides followed; self-custody `provider-services` path kept. |
 | TTS adapter, sentence assembler, PCM framer, ordered LiveKit publisher, smoke/readiness scripts | — | **Built for SOULBOUND** | `agent/src/tts.ts`, `agent/src/tts-core.ts`, `scripts/tts-*.sh`, `akash/deploy.yml`. |
 
-Not borrowed, not present: memory graph, anything on-chain, Muse Image.
+| Keccak-256 hashing (`js-sha3`) | `js-sha3` (MIT, maintained) | Library dependency | Node has sha3-256, not Keccak-256; smallest maintained direct dependency for the frozen Merkle protocol (docs/memory-schema.md). |
+| Durable memory store, Spark structured extraction, bounded job queue, Merkle manifests/proofs (Ticket 004) | — | **Built for SOULBOUND** | `agent/src/memory/`, `agent/scripts/memory-demo.mjs`, `docs/memory-schema.md`. Off-chain only; nothing on-chain yet. |
+
+Not borrowed, not present: anything on-chain (memory roots arrive with Ticket 005), Muse Image.

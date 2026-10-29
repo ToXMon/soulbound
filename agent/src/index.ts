@@ -7,6 +7,11 @@ import { fileURLToPath } from "node:url";
 import { VoiceTranscribeStream } from "./observe.js";
 import { runTurn } from "./pipeline.js";
 import { LiveKitAudioPublisher, ttsProviderFromEnv, voiceConfigFromEnv } from "./tts.js";
+import { randomUUID } from "node:crypto";
+import { memoryConfigFromEnv } from "./memory/config.js";
+import { MemoryStore } from "./memory/store.js";
+import { MemoryQueue } from "./memory/queue.js";
+import { SparkExtractor, type SourceTurn } from "./memory/extract.js";
 
 export default defineAgent({
   entry: async (ctx) => {
@@ -17,6 +22,19 @@ export default defineAgent({
     // Follow-ups are never armed/acked, so no diagnostic loop can form.
     let pendingDiag: { runId: string; turnId: string } | null = null;
     let overlapCount = 0;
+    // Ticket 004: opt-in durable memory. Disabled preserves the current loop.
+    // Enabled-but-misconfigured throws here (startup error, loud).
+    // LIMITATION: only owner-classified turns are extracted; diarization is a
+    // heuristic, not authenticated ownership (see docs/memory-schema.md).
+    const memCfg = memoryConfigFromEnv();
+    let memoryQueue: MemoryQueue | null = null;
+    const sessionId = randomUUID();
+    let turnSeq = 0;
+    if (memCfg) {
+      const store = await MemoryStore.open(memCfg.storePath, memCfg.namespace);
+      memoryQueue = new MemoryQueue(store, new SparkExtractor(), { capacity: memCfg.capacity, timeoutMs: memCfg.timeoutMs });
+      console.log(`[memory] enabled character=${memCfg.namespace.characterId} records=${store.stats().records}`);
+    }
     // Ticket 003: TTS is optional. Misconfiguration is loud at startup;
     // absence keeps the proven text-only loop. No silent fallback provider.
     const ttsProvider = ttsProviderFromEnv();
@@ -44,6 +62,17 @@ export default defineAgent({
       const data = new TextEncoder().encode(JSON.stringify(rec));
       const publishStart = performance.now();
       await ctx.agent?.publishData(data, { reliable: true, topic: "turn" });
+      // Post-publication only: enqueue an immutable snapshot. Extraction,
+      // storage and hashing are never awaited in the speech/publication path.
+      if (memoryQueue && rec.kind === "owner") {
+        const sourceTurn: SourceTurn = {
+          id: `${sessionId}:${++turnSeq}`,
+          speakerKind: rec.kind,
+          userText: rec.transcript,
+          replyText: rec.reply,
+        };
+        memoryQueue.enqueue({ key: `turn:${sourceTurn.id}`, turns: [sourceTurn] });
+      }
       const publishMs = Math.round(performance.now() - publishStart);
       if (diag) {
         const followUp = new TextEncoder().encode(JSON.stringify({
@@ -102,6 +131,12 @@ export default defineAgent({
       turnAbort?.abort();
       vt.close();
       if (publisher) await publisher.close();
+      if (memoryQueue) {
+        // Bounded drain; pending jobs are NOT crash-durable and are reported as such.
+        const drained = await memoryQueue.flush(5_000);
+        const s = memoryQueue.getStats();
+        console.log(`[memory] shutdown drain=${drained ? "complete" : "INCOMPLETE"} completed=${s.completed} failed=${s.failed} droppedOverflow=${s.droppedOverflow} pending=${s.pending}`);
+      }
     });
     await ctx.waitForParticipant();
     console.log(`[agent] participant in room; voice loop live (${ttsProvider ? "TTS configured" : "text replies only"})`);
