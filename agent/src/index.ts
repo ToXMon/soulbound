@@ -9,13 +9,44 @@ import { runTurn } from "./pipeline.js";
 
 export default defineAgent({
   entry: async (ctx) => {
-    // Ticket 018: register the track handler BEFORE ctx.connect() so a mic
-    // track published by an already-present participant is never missed, and
-    // scan for already-subscribed audio tracks after joining (late discovery).
-    const vt = new VoiceTranscribeStream(async (turn) => {
-      const rec = await runTurn(turn);
+    // Ticket 019 diagnostic correlation: the browser arms ONE turn at a time
+    // on topic "latency-diag" with opaque {runId, turnId}. The agent consumes
+    // it for the next VT turn, joins it into the turn packet, then publishes
+    // a separate follow-up on "latency-publish" once publishData resolves.
+    // Follow-ups are never armed/acked, so no diagnostic loop can form.
+    let pendingDiag: { runId: string; turnId: string } | null = null;
+    let overlapCount = 0;
+    const vt = new VoiceTranscribeStream(async (turn, sttMs, vtTiming) => {
+      const diag = pendingDiag;
+      pendingDiag = null;
+      const rec = await runTurn(turn, sttMs, { vtTiming, diag });
       const data = new TextEncoder().encode(JSON.stringify(rec));
+      const publishStart = performance.now();
       await ctx.agent?.publishData(data, { reliable: true, topic: "turn" });
+      const publishMs = Math.round(performance.now() - publishStart);
+      if (diag) {
+        const followUp = new TextEncoder().encode(JSON.stringify({
+          type: "publish-complete",
+          runId: diag.runId,
+          turnId: diag.turnId,
+          publishMs,
+          publishUnavailableReason: null,
+        }));
+        await ctx.agent?.publishData(followUp, { reliable: true, topic: "latency-publish" });
+      }
+    });
+    ctx.room.on(RoomEvent.DataReceived, (payload: Uint8Array, _p: unknown, _k: unknown, topic?: string) => {
+      if (topic !== "latency-diag") return;
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload)) as { type?: string; runId?: string; turnId?: string };
+        if (msg.type !== "arm" || !msg.runId || !msg.turnId) return;
+        if (pendingDiag) {
+          overlapCount++;
+          console.log(`[latency] overlapping diagnostic arm ignored (count=${overlapCount}) turnId=${msg.turnId}`);
+          return;
+        }
+        pendingDiag = { runId: msg.runId, turnId: msg.turnId };
+      } catch { /* ignore malformed diagnostic packets */ }
     });
     const feed = (track: RemoteTrack) => {
       if (track.kind !== TrackKind.KIND_AUDIO) return;
