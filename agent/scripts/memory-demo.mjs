@@ -59,6 +59,7 @@ if (manifest && store.records.length) {
   proofOk = verifyProof(manifest.root, proof);
   tamperOk = !store.verifyRecord({ ...store.records[0], summary: "tampered" });
 }
+await store.close(); // release the single-writer lock before reopening
 const reopened = await MemoryStore.open(storePath, ns);
 console.log(JSON.stringify({
   mode: mode === "live" ? "live" : "offline-fixture",

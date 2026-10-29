@@ -62,18 +62,43 @@ export function merkleProof(leaves: Buffer[], leaf: Buffer): MerkleProof {
   return { leaf: leaf.toString("hex"), siblings, leafIndex: idx, leafCount: sorted.length };
 }
 
+const HEX64 = /^[0-9a-fA-F]{64}$/;
+/** Expected proof depth for a sorted tree with odd-node duplication. */
+export function expectedDepth(leafCount: number): number {
+  let depth = 0, size = leafCount;
+  while (size > 1) { size = Math.ceil(size / 2); depth++; }
+  return depth;
+}
+
+/**
+ * Verify a membership proof. Structural metadata is validated strictly
+ * (encodings, index/count ranges, exact depth, odd-duplication siblings).
+ * NOTE: with sorted-pair hashing, a valid proof authenticates MEMBERSHIP of
+ * the leaf in a tree with this root — it does NOT cryptographically
+ * authenticate a unique leaf position or total leaf count. leafIndex and
+ * leafCount are consistency-checked metadata only; callers must obtain the
+ * authoritative count/order from the sealed manifest, not from a proof.
+ */
 export function verifyProof(rootHex: string, proof: MerkleProof): boolean {
   try {
+    if (typeof rootHex !== "string" || !HEX64.test(rootHex)) return false;
+    if (!proof || typeof proof !== "object") return false;
+    if (typeof proof.leaf !== "string" || !HEX64.test(proof.leaf)) return false;
+    if (!Array.isArray(proof.siblings) || proof.siblings.some((s) => typeof s !== "string" || !HEX64.test(s))) return false;
+    if (!Number.isInteger(proof.leafCount) || proof.leafCount < 1) return false;
+    if (!Number.isInteger(proof.leafIndex) || proof.leafIndex < 0 || proof.leafIndex >= proof.leafCount) return false;
+    if (proof.siblings.length !== expectedDepth(proof.leafCount)) return false;
     let node: Buffer = Buffer.from(proof.leaf, "hex");
-    if (!isHash(node)) return false;
     let i = proof.leafIndex;
+    let levelSize = proof.leafCount;
     for (const s of proof.siblings) {
       const sib = Buffer.from(s, "hex");
-      if (!isHash(sib)) return false;
+      // Odd level: the last node is duplicated, so its sibling must be itself.
+      if (levelSize % 2 === 1 && i === levelSize - 1 && !sib.equals(node)) return false;
       node = hashPair(node, sib);
       i = Math.floor(i / 2);
+      levelSize = Math.ceil(levelSize / 2);
     }
-    // Single-leaf tree has no siblings; root must equal leaf.
     return node.toString("hex") === rootHex.toLowerCase();
   } catch { return false; }
 }

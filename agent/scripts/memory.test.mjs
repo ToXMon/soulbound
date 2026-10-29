@@ -2,7 +2,8 @@
 // No network, no real inference. Run after `pnpm build`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readdir } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, readdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { canonicalJson } from "../dist/memory/canonical.js";
@@ -65,11 +66,13 @@ test("three-turn fact/correction: persistence, superseding v2, v1 retained, idem
   q.enqueue({ key: "job:1", turns: [turn("s:1", "My favourite colour is teal.")] });
   assert.equal(await q.flush(5000), true);
   assert.equal(store.records.length, 3);
-  // Fresh-process reopen (new instance over same files).
+  // Fresh-process reopen (new instance over same files; writer lock released first).
+  await store.close();
   const reopened = await MemoryStore.open(root, NS);
   assert.equal(reopened.records.length, 3);
   assert.deepEqual(reopened.records.map((r) => r.id), store.records.map((r) => r.id));
   assert.equal(reopened.records.find((r) => r.id === v1.id).summary, v1.summary); // v1 bytes unchanged
+  await reopened.close();
 });
 
 test("namespaces isolated; traversal/invalid ids rejected; cross-namespace supersedes rejected", async () => {
@@ -97,11 +100,13 @@ test("malformed extraction rejected: extra fields, bad confidence, foreign prove
 
 test("corrupt store throws visibly; orphan tmp from interrupted write is ignored", async () => {
   const { root, store } = await seededStore();
+  await store.close();
   const { namespaceDirName } = await import("../dist/memory/store.js");
   const dir = join(root, namespaceDirName(NS));
   await writeFile(join(dir, "store.json.dead.tmp"), "{partial");
   const reopened = await MemoryStore.open(root, NS); // tmp ignored, good data loads
   assert.equal(reopened.records.length, store.records.length);
+  await reopened.close();
   await writeFile(join(dir, "store.json"), "{corrupt");
   await assert.rejects(() => MemoryStore.open(root, NS), /JSON|Unexpected|corrupt/i);
 });
@@ -131,11 +136,13 @@ test("sealed epoch manifest survives restart; late records enter a new epoch; ta
   assert.equal(verifyProof(manifest.root, proof), true);
   assert.equal(store.verifyRecord(store.records[0]), true);
   assert.equal(store.verifyRecord({ ...store.records[0], summary: "tampered summary" }), false);
+  await store.close();
   const reopened = await MemoryStore.open(root, NS);
   assert.deepEqual(reopened.manifests, store.manifests);
   await reopened.appendExtracted("late:1", [{ type: "fact", summary: "Late fact.", confidence: 0.5, source_turn_ids: ["t9"] }]);
   assert.equal(reopened.records.at(-1).epoch, m1.epoch + 1);
   assert.equal(reopened.manifests.length, 1); // sealed epoch unchanged
+  await reopened.close();
 });
 
 test("queue: bounded capacity reports overflow; timeout fails visibly; shutdown drain reports incomplete", async () => {
@@ -163,6 +170,89 @@ test("publication occurs before extraction settles (voice path never awaits memo
   release();
   assert.equal(await q.flush(5000), true);
   assert.deepEqual(order, ["published", "extracted"]);
+});
+
+test("REGRESSION review: manifest with self-consistent root over unrelated leaves is rejected on reopen", async () => {
+  const { root, store } = await seededStore();
+  await store.sealEpoch();
+  await store.close();
+  const { namespaceDirName } = await import("../dist/memory/store.js");
+  const path = join(root, namespaceDirName(NS), "store.json");
+  const file = JSON.parse(await readFile(path, "utf8"));
+  const fake = ["a", "b", "c"].map((s) => keccakHex(`unrelated-${s}`));
+  file.manifests[0].leaf_hashes = fake;
+  file.manifests[0].record_ids = ["fake-1", "fake-2", "fake-3"];
+  file.manifests[0].root = merkleRoot(fake.map((h) => Buffer.from(h, "hex"))).toString("hex");
+  await writeFile(path, JSON.stringify(file));
+  await assert.rejects(() => MemoryStore.open(root, NS), /manifest/);
+});
+
+test("REGRESSION review: manifest epoch progression and duplicate record ids are rejected on reopen", async () => {
+  const { root, store } = await seededStore();
+  await store.sealEpoch();
+  await store.close();
+  const { namespaceDirName } = await import("../dist/memory/store.js");
+  const path = join(root, namespaceDirName(NS), "store.json");
+  const original = await readFile(path, "utf8");
+  const bad1 = JSON.parse(original);
+  bad1.next_epoch = 99;
+  await writeFile(path, JSON.stringify(bad1));
+  await assert.rejects(() => MemoryStore.open(root, NS), /manifest|epoch/);
+  const bad2 = JSON.parse(original);
+  bad2.records.push({ ...bad2.records[0] });
+  await writeFile(path, JSON.stringify(bad2));
+  await assert.rejects(() => MemoryStore.open(root, NS), /duplicate|manifest/);
+});
+
+test("REGRESSION review: malformed proof metadata and encodings are rejected", () => {
+  const leaf = (s) => Buffer.from(keccakHex(s), "hex");
+  const leaves = ["a", "b", "c"].map(leaf);
+  const root = merkleRoot(leaves).toString("hex");
+  const good = merkleProof(leaves, leaves[0]);
+  assert.equal(verifyProof(root, good), true);
+  assert.equal(verifyProof(root, { ...good, leafIndex: -10, leafCount: 0 }), false);
+  assert.equal(verifyProof(root, { ...good, leafIndex: 3 }), false);
+  assert.equal(verifyProof(root, { ...good, leafCount: 999 }), false);
+  assert.equal(verifyProof(root, { ...good, leafCount: 1 }), false);
+  assert.equal(verifyProof(root, { ...good, leaf: "zz" + good.leaf.slice(2) }), false);
+  assert.equal(verifyProof(root, { ...good, leaf: good.leaf.slice(0, 62) }), false);
+  assert.equal(verifyProof("not-hex", good), false);
+  assert.equal(verifyProof(root, { ...good, siblings: [...good.siblings, good.siblings[0]] }), false);
+  assert.equal(verifyProof(root, { ...good, siblings: [] }), false);
+  assert.equal(verifyProof(root, null), false);
+  // Odd-node duplication: proof for the last of 3 leaves must duplicate itself.
+  const oddProof = merkleProof(leaves, [...leaves].sort(Buffer.compare).at(-1));
+  assert.equal(verifyProof(root, oddProof), true);
+  assert.equal(verifyProof(root, { ...oddProof, siblings: [keccakHex("other"), ...oddProof.siblings.slice(1)] }), false);
+});
+
+test("REGRESSION review: single-writer exclusion across instances and processes, stale lock recovers", async () => {
+  const root = await tmp();
+  const first = await MemoryStore.open(root, NS);
+  await assert.rejects(() => MemoryStore.open(root, NS), /writer|lock/i);
+  await first.close();
+  const second = await MemoryStore.open(root, NS); // released lock reopens fine
+  await second.close();
+
+  // Cross-process: child holds the store; parent is rejected; after the child
+  // is killed (no clean close), the stale lock is recovered safely.
+  const storeUrl = new URL("../dist/memory/store.js", import.meta.url).href;
+  const child = spawn(process.execPath, ["--input-type=module", "-e",
+    `import { MemoryStore } from ${JSON.stringify(storeUrl)}; const s = await MemoryStore.open(${JSON.stringify(root)}, ${JSON.stringify(NS)}); console.log("READY"); setInterval(() => {}, 1000);`],
+    { stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    await new Promise((resolve, reject) => {
+      child.stdout.on("data", (d) => String(d).includes("READY") && resolve());
+      child.stderr.on("data", (d) => process.stderr.write(d));
+      child.on("exit", (c) => reject(new Error(`child exited ${c}`)));
+      setTimeout(() => reject(new Error("child ready timeout")), 10000);
+    });
+    await assert.rejects(() => MemoryStore.open(root, NS), /writer|lock/i);
+  } finally { child.kill("SIGKILL"); await new Promise((r) => child.on("exit", r)); }
+  const recovered = await MemoryStore.open(root, NS); // stale pid lock recovered
+  await recovered.appendExtracted("after-crash:1", [{ type: "fact", summary: "Recovered writer fact.", confidence: 0.5, source_turn_ids: ["t1"] }]);
+  assert.equal(recovered.records.length, 1);
+  await recovered.close();
 });
 
 test("config: disabled preserves loop; enabled without identity is a startup error", () => {

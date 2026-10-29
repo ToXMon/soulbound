@@ -28,12 +28,13 @@ export default defineAgent({
     // heuristic, not authenticated ownership (see docs/memory-schema.md).
     const memCfg = memoryConfigFromEnv();
     let memoryQueue: MemoryQueue | null = null;
+    let memoryStore: MemoryStore | null = null;
     const sessionId = randomUUID();
     let turnSeq = 0;
     if (memCfg) {
-      const store = await MemoryStore.open(memCfg.storePath, memCfg.namespace);
-      memoryQueue = new MemoryQueue(store, new SparkExtractor(), { capacity: memCfg.capacity, timeoutMs: memCfg.timeoutMs });
-      console.log(`[memory] enabled character=${memCfg.namespace.characterId} records=${store.stats().records}`);
+      memoryStore = await MemoryStore.open(memCfg.storePath, memCfg.namespace);
+      memoryQueue = new MemoryQueue(memoryStore, new SparkExtractor(), { capacity: memCfg.capacity, timeoutMs: memCfg.timeoutMs });
+      console.log(`[memory] enabled character=${memCfg.namespace.characterId} records=${memoryStore.stats().records}`);
     }
     // Ticket 003: TTS is optional. Misconfiguration is loud at startup;
     // absence keeps the proven text-only loop. No silent fallback provider.
@@ -136,6 +137,7 @@ export default defineAgent({
         const drained = await memoryQueue.flush(5_000);
         const s = memoryQueue.getStats();
         console.log(`[memory] shutdown drain=${drained ? "complete" : "INCOMPLETE"} completed=${s.completed} failed=${s.failed} droppedOverflow=${s.droppedOverflow} pending=${s.pending}`);
+        await memoryStore?.close(); // release the single-writer lock last
       }
     });
     await ctx.waitForParticipant();
