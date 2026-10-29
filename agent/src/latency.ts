@@ -23,6 +23,23 @@ export interface AgentTiming {
   firstTokenUnavailableReason: string | null;
   publishMs: number | null;
   publishUnavailableReason: string | null;
+  // Ticket 003 extensions (all agent performance.now() clock; null + reason
+  // when unavailable, never zero, never mixed with browser timestamps).
+  /** Spark request start -> first streamed token receipt. */
+  sparkFirstTokenMs: number | null;
+  sparkFirstTokenUnavailableReason: string | null;
+  /** Spark request start -> first complete sentence emitted. */
+  firstSentenceMs: number | null;
+  firstSentenceUnavailableReason: string | null;
+  /** Spark request start -> first TTS PCM chunk received from the endpoint. */
+  firstTtsChunkMs: number | null;
+  firstTtsChunkUnavailableReason: string | null;
+  /** Spark request start -> first PCM frame handed to the LiveKit AudioSource. */
+  firstAudioPublishMs: number | null;
+  firstAudioPublishUnavailableReason: string | null;
+  /** Whole-turn TTS synthesis+publish elapsed, when TTS ran. */
+  ttsMs: number | null;
+  ttsUnavailableReason: string | null;
 }
 
 export function elapsedMs(start: number | null, end: number | null): number | null {

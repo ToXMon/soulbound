@@ -1,0 +1,65 @@
+---
+# SOULBOUND Ticket 003 — VoxCPM2 TTS on Akash (single GPU, single replica).
+# Pinned serving stack (Gate A):
+#   image: vllm/vllm-omni:v0.32.0 (linux/amd64 digest below — never :latest)
+#   model: openbmb/VoxCPM2 @ 32279effe8c19989596f05d353d1447f51d9e915
+#   serving: vLLM-Omni v0.32.0, `vllm serve ... --omni`, POST /v1/audio/speech
+# NEVER commit a real secret here. The runbook copies this file to a local
+# gitignored copy and substitutes REPLACE_WITH_RUNTIME_SECRET there.
+version: "2.0"
+
+services:
+  tts:
+    image: vllm/vllm-omni:v0.32.0@sha256:6b44ee504a0dc3a21eacf72e7dc5da318b7bcc8ed0e349dc928e67278414430c
+    command:
+      - "bash"
+      - "-c"
+      - "pip install -q voxcpm==2.0.3 && exec vllm serve openbmb/VoxCPM2 --revision 32279effe8c19989596f05d353d1447f51d9e915 --omni --host 0.0.0.0 --port 8000 --api-key REPLACE_WITH_RUNTIME_SECRET --stage-init-timeout 900"
+    env:
+      - "HF_HOME=/root/.cache/huggingface"
+      - "HF_HUB_DISABLE_TELEMETRY=1"
+    expose:
+      - port: 8000
+        to:
+          - global: true
+
+profiles:
+  compute:
+    tts:
+      resources:
+        cpu:
+          units: 4
+        memory:
+          size: 16Gi
+        storage:
+          size: 50Gi
+        gpu:
+          units: 1
+          attributes:
+            vendor:
+              nvidia:
+                - model: rtx3090
+                - model: rtx3090ti
+                - model: rtx4090
+                - model: rtx5090
+                - model: l4
+                - model: l40
+                - model: l40s
+                - model: a10
+                - model: a100
+                - model: h100
+                - model: rtxa6000
+                - model: a40
+
+  placement:
+    dcloud:
+      pricing:
+        tts:
+          denom: uact
+          amount: 500000
+
+deployment:
+  tts:
+    dcloud:
+      profile: tts
+      count: 1

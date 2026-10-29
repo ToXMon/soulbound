@@ -2,10 +2,11 @@
 // to Muse VT (observe), run each diarized turn through orient/decide/act,
 // publish the turn record back on the "turn" data topic for the UI.
 import { cli, defineAgent, WorkerOptions } from "@livekit/agents";
-import { AudioStream, RoomEvent, TrackKind, type RemoteTrack } from "@livekit/rtc-node";
+import { AudioStream, RoomEvent, TrackKind, TrackPublishOptions, type RemoteTrack } from "@livekit/rtc-node";
 import { fileURLToPath } from "node:url";
 import { VoiceTranscribeStream } from "./observe.js";
 import { runTurn } from "./pipeline.js";
+import { LiveKitAudioPublisher, ttsProviderFromEnv, voiceConfigFromEnv } from "./tts.js";
 
 export default defineAgent({
   entry: async (ctx) => {
@@ -16,10 +17,30 @@ export default defineAgent({
     // Follow-ups are never armed/acked, so no diagnostic loop can form.
     let pendingDiag: { runId: string; turnId: string } | null = null;
     let overlapCount = 0;
+    // Ticket 003: TTS is optional. Misconfiguration is loud at startup;
+    // absence keeps the proven text-only loop. No silent fallback provider.
+    const ttsProvider = ttsProviderFromEnv();
+    const voice = voiceConfigFromEnv();
+    let publisher: LiveKitAudioPublisher | null = null;
+    let turnAbort: AbortController | null = null;
+    if (ttsProvider) {
+      console.log(`[tts] provider=${ttsProvider.name} format=${ttsProvider.format.sampleRate}Hz/${ttsProvider.format.channels}ch seed=${voice.seed ?? "none"} (endpoint not yet proven until Gate B smoke)`);
+    } else {
+      console.log("[tts] not configured; text-only mode");
+    }
     const vt = new VoiceTranscribeStream(async (turn, sttMs, vtTiming) => {
       const diag = pendingDiag;
       pendingDiag = null;
-      const rec = await runTurn(turn, sttMs, { vtTiming, diag });
+      // New turn supersedes any speech still synthesizing: cancel, never queue stale audio.
+      turnAbort?.abort();
+      turnAbort = new AbortController();
+      const rec = await runTurn(turn, sttMs, {
+        vtTiming, diag,
+        tts: ttsProvider,
+        voice,
+        sink: publisher,
+        signal: turnAbort.signal,
+      });
       const data = new TextEncoder().encode(JSON.stringify(rec));
       const publishStart = performance.now();
       await ctx.agent?.publishData(data, { reliable: true, topic: "turn" });
@@ -63,6 +84,13 @@ export default defineAgent({
     };
     ctx.room.on(RoomEvent.TrackSubscribed, feed);
     await ctx.connect();
+    if (ttsProvider && ctx.room.localParticipant) {
+      publisher = new LiveKitAudioPublisher(async (track) => {
+        await ctx.room.localParticipant!.publishTrack(track, new TrackPublishOptions({}));
+      });
+      await publisher.start();
+      console.log("[tts] LiveKit audio track published (soulbound-voice, 48kHz mono)");
+    }
     // Late discovery: audio tracks already subscribed before our handler existed.
     for (const p of ctx.room.remoteParticipants ?? []) {
       for (const pub of (p as { trackPublications?: Map<string, { track?: RemoteTrack }> }).trackPublications?.values() ?? []) {
@@ -70,9 +98,13 @@ export default defineAgent({
       }
     }
     await vt.connect();
-    ctx.addShutdownCallback(async () => { vt.close(); });
+    ctx.addShutdownCallback(async () => {
+      turnAbort?.abort();
+      vt.close();
+      if (publisher) await publisher.close();
+    });
     await ctx.waitForParticipant();
-    console.log("[agent] participant in room; voice loop live (text replies only — TTS is Ticket 003)");
+    console.log(`[agent] participant in room; voice loop live (${ttsProvider ? "TTS configured" : "text replies only"})`);
   },
 });
 

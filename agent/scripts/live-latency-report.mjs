@@ -18,8 +18,8 @@ export function percentileStats(values) {
   return { n: sorted.length, p50: percentile(sorted, 0.5), p95: percentile(sorted, 0.95) };
 }
 
-const BROWSER_TS = ["speechStartProxyAtMs", "speechEndProxyAtMs", "dataReceiptAtMs", "domCommitAtMs"];
-const AGENT_DURATIONS = ["utteranceVtElapsedMs", "vtSpeechEndToCompleteMs", "vtCompleteToSparkMs", "sparkMs", "publishMs", "firstTokenMs"];
+const BROWSER_TS = ["speechStartProxyAtMs", "speechEndProxyAtMs", "dataReceiptAtMs", "domCommitAtMs", "audioAttachedAtMs", "audioPlayingAtMs"];
+const AGENT_DURATIONS = ["utteranceVtElapsedMs", "vtSpeechEndToCompleteMs", "vtCompleteToSparkMs", "sparkMs", "publishMs", "firstTokenMs", "sparkFirstTokenMs", "firstSentenceMs", "firstTtsChunkMs", "firstAudioPublishMs", "ttsMs"];
 const OUTCOMES = new Set(["success", "failed", "timeout", "missing"]);
 
 function isValidNonNeg(v) {
@@ -41,6 +41,8 @@ export function validateTurn(turn) {
     ["speechEndProxyAtMs", "domCommitAtMs"],
     ["speechStartProxyAtMs", "domCommitAtMs"],
     ["dataReceiptAtMs", "domCommitAtMs"],
+    ["speechEndProxyAtMs", "audioPlayingAtMs"],
+    ["audioAttachedAtMs", "audioPlayingAtMs"],
   ];
   for (const [a, c] of pairs) {
     if (typeof b[a] === "number" && typeof b[c] === "number" && b[c] < b[a]) {
@@ -70,6 +72,10 @@ function browserDurations(turn) {
     markerToVisibleMs: diff("speechEndProxyAtMs", "domCommitAtMs"),
     startToVisibleMs: diff("speechStartProxyAtMs", "domCommitAtMs"),
     dataReceiptToDomCommitMs: diff("dataReceiptAtMs", "domCommitAtMs"),
+    // MANUAL PROXY (Ticket 003): Finished-speaking click -> audio element
+    // "playing" event. Browser clock only; not physical first-audio proof.
+    markerToAudioPlayingMs: diff("speechEndProxyAtMs", "audioPlayingAtMs"),
+    startToAudioPlayingMs: diff("speechStartProxyAtMs", "audioPlayingAtMs"),
   };
 }
 
@@ -77,12 +83,19 @@ const METRICS = [
   "markerToVisibleMs",
   "startToVisibleMs",
   "dataReceiptToDomCommitMs",
+  "markerToAudioPlayingMs",
+  "startToAudioPlayingMs",
   "utteranceVtElapsedMs",
   "vtSpeechEndToCompleteMs",
   "vtCompleteToSparkMs",
   "sparkMs",
   "publishMs",
   "firstTokenMs",
+  "sparkFirstTokenMs",
+  "firstSentenceMs",
+  "firstTtsChunkMs",
+  "firstAudioPublishMs",
+  "ttsMs",
 ];
 
 export function summarize(data, expectedTurns = 20) {
@@ -142,7 +155,7 @@ export function summarize(data, expectedTurns = 20) {
     let unavailable = 0;
     for (const t of eligible) {
       let v = null;
-      if (m === "markerToVisibleMs" || m === "startToVisibleMs" || m === "dataReceiptToDomCommitMs") {
+      if (m === "markerToVisibleMs" || m === "startToVisibleMs" || m === "dataReceiptToDomCommitMs" || m === "markerToAudioPlayingMs" || m === "startToAudioPlayingMs") {
         v = browserDurations(t)[m];
       } else {
         v = t.agent?.[m] ?? null;
@@ -196,7 +209,7 @@ export function summarize(data, expectedTurns = 20) {
     errors,
     complete,
     verdict: complete
-      ? "COMPLETE pre-TTS baseline (NOT a REQ-40 first-audio PASS: no TTS in this ticket)"
+      ? "COMPLETE text baseline with Ticket 003 TTS/playback proxies reported where present (NOT a REQ-40 first-audio PASS: proxies alone cannot establish physical first audio)"
       : "INCOMPLETE/BLOCKED baseline — see counts, invalid and errors",
   };
 }
@@ -209,7 +222,11 @@ function formatHuman(r) {
   lines.push(`boundary: ${r.meta.boundaryDefinition}`);
   lines.push(`counts: expected=${r.expectedTurns} warmup=${r.counts.warmupAttempted} attempted=${r.counts.attempted} successful=${r.counts.successful} failed=${r.counts.failed} timedOut=${r.counts.timedOut} missing=${r.counts.missing} duplicate=${r.counts.duplicate} invalid=${r.counts.invalid} unmatchedAgent=${r.counts.unmatchedAgentRecords} unmatchedBrowser=${r.counts.unmatchedBrowserRecords}`);
   for (const [name, m] of Object.entries(r.metrics)) {
-    const label = name === "markerToVisibleMs" ? `${name} [MANUAL-PROXY marker->visible, not true speech-end]` : name;
+    const label = name === "markerToVisibleMs"
+      ? `${name} [MANUAL-PROXY marker->visible, not true speech-end]`
+      : name === "markerToAudioPlayingMs"
+        ? `${name} [MANUAL-PROXY marker->audio-playing, not physical first-audio]`
+        : name;
     lines.push(`${label}: n=${m.eligible} unavailable=${m.unavailableOrExcluded} p50=${m.p50 === null ? "null" : m.p50 + "ms"} p95=${m.p95 === null ? "null" : m.p95 + "ms"}`);
   }
   if (r.invalid.length) lines.push(`invalid turns: ${JSON.stringify(r.invalid)}`);

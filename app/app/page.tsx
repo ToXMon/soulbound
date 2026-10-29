@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Room, RoomEvent, type RemoteParticipant } from "livekit-client";
+import {
+  Room,
+  RoomEvent,
+  Track,
+  type RemoteParticipant,
+  type RemoteTrack,
+  type RemoteTrackPublication,
+} from "livekit-client";
 
 interface TurnLine {
   who: string;
@@ -16,6 +23,11 @@ interface BrowserTiming {
   speechEndProxyAtMs: number | null;
   dataReceiptAtMs: number | null;
   domCommitAtMs: number | null;
+  // Ticket 003: browser-clock playback observations. audioPlayingAtMs is the
+  // media element "playing" event, a proxy for first audible playback, not
+  // proof of physical sound (headphone/recording review still required).
+  audioAttachedAtMs: number | null;
+  audioPlayingAtMs: number | null;
 }
 interface AgentTimingExport {
   utteranceVtElapsedMs: number | null;
@@ -24,6 +36,11 @@ interface AgentTimingExport {
   sparkMs: number | null;
   publishMs: number | null;
   firstTokenMs: number | null;
+  sparkFirstTokenMs?: number | null;
+  firstSentenceMs?: number | null;
+  firstTtsChunkMs?: number | null;
+  firstAudioPublishMs?: number | null;
+  ttsMs?: number | null;
 }
 interface DiagAttempt {
   turnId: string;
@@ -38,6 +55,7 @@ interface DiagAttempt {
 const BOUNDARY =
   "manual-proxy: speechStartProxy = operator 'Start turn' click; speechEndProxy = operator 'Finished speaking' click; visible = reply DOM commit (not guaranteed physical paint). " +
   "markerToVisible is MANUAL-PROXY marker->visible, NOT true speech-end latency (human marker delay included). " +
+  "markerToAudioPlaying (Ticket 003) = Finished-speaking click -> remote audio element 'playing' event; also a MANUAL PROXY on the browser clock, not physical first-audio proof. " +
   "All browser durations on one performance.now() clock; agent durations on the agent performance.now() clock; clocks are never subtracted.";
 
 function newId(prefix: string): string {
@@ -48,8 +66,12 @@ function newId(prefix: string): string {
 
 export default function Page() {
   const roomRef = useRef<Room | null>(null);
+  const audioHostRef = useRef<HTMLDivElement | null>(null);
+  const audioElsRef = useRef(new Map<string, HTMLMediaElement>());
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState("Not connected. Join the room and speak.");
+  const [audioStatus, setAudioStatus] = useState("Character audio: not attached yet.");
+  const [audioBlocked, setAudioBlocked] = useState(false);
   const [lines, setLines] = useState<TurnLine[]>([]);
 
   // Diagnostic state (opt-in; normal flow unchanged when off).
@@ -82,12 +104,67 @@ export default function Page() {
     syncAttempts(next);
   }, [syncAttempts]);
 
+  const noteAudioPlaying = useCallback(() => {
+    const at = performance.now();
+    setAudioStatus("Character audio: playing.");
+    setAudioBlocked(false);
+    const cur = currentRef.current;
+    // Stamp even after the text commit finished the attempt: first audio
+    // normally arrives after visible text, so gating on `pending` lost
+    // every markerToAudioPlaying sample in the first live export.
+    if (cur && cur.browser.audioPlayingAtMs === null) {
+      const updated: DiagAttempt = {
+        ...cur,
+        browser: { ...cur.browser, audioPlayingAtMs: at },
+      };
+      currentRef.current = updated;
+      upsertAttempt(updated);
+    }
+  }, [upsertAttempt]);
+
+  const noteAudioAttached = useCallback(() => {
+    const at = performance.now();
+    setAudioStatus("Character audio: attached, waiting for playback. Use headphones.");
+    const cur = currentRef.current;
+    if (cur && cur.browser.audioAttachedAtMs === null) {
+      const updated: DiagAttempt = {
+        ...cur,
+        browser: { ...cur.browser, audioAttachedAtMs: at },
+      };
+      currentRef.current = updated;
+      upsertAttempt(updated);
+    }
+  }, [upsertAttempt]);
+
+  const detachAllAudio = useCallback(() => {
+    for (const el of audioElsRef.current.values()) {
+      el.pause();
+      el.remove();
+    }
+    audioElsRef.current.clear();
+  }, []);
+
+  const startAudio = useCallback(async () => {
+    // Explicit user activation for autoplay policies (Ticket 003 Gate C).
+    try {
+      await roomRef.current?.startAudio();
+      for (const el of audioElsRef.current.values()) await el.play();
+      setAudioBlocked(false);
+      setAudioStatus("Character audio: enabled by user activation.");
+    } catch {
+      setAudioBlocked(true);
+      setAudioStatus("Character audio: playback still blocked. Click Start audio again and check browser sound settings.");
+    }
+  }, []);
+
   const disconnect = useCallback(async () => {
+    detachAllAudio();
     await roomRef.current?.disconnect();
     roomRef.current = null;
     setConnected(false);
     setStatus("Disconnected.");
-  }, []);
+    setAudioStatus("Character audio: detached.");
+  }, [detachAllAudio]);
 
   const finishWithDomCommit = useCallback((turnId: string) => {
     // DOM commit proxy: two rAFs after the state update that rendered the
@@ -132,6 +209,11 @@ export default function Page() {
                 sparkMs: target.agent?.sparkMs ?? null,
                 publishMs: typeof msg.publishMs === "number" ? msg.publishMs : null,
                 firstTokenMs: target.agent?.firstTokenMs ?? null,
+                sparkFirstTokenMs: target.agent?.sparkFirstTokenMs ?? null,
+                firstSentenceMs: target.agent?.firstSentenceMs ?? null,
+                firstTtsChunkMs: target.agent?.firstTtsChunkMs ?? null,
+                firstAudioPublishMs: target.agent?.firstAudioPublishMs ?? null,
+                ttsMs: target.agent?.ttsMs ?? null,
               },
             });
           } catch { /* ignore malformed diagnostic packets */ }
@@ -144,8 +226,18 @@ export default function Page() {
             speaker: string | null; kind: string; transcript: string; reply: string; model: string;
             diag?: { runId: string; turnId: string } | null;
             timing?: AgentTimingExport & { firstTokenMs: number | null };
+            tts?: { status: string; provider: string | null; sentences: number; error: string | null };
           };
           setModelId(rec.model ?? null);
+          if (rec.tts) {
+            setAudioStatus(
+              rec.tts.status === "ok"
+                ? `Character audio: TTS ok (${rec.tts.sentences} sentence(s) via ${rec.tts.provider ?? "tts"}).`
+                : rec.tts.status === "not-configured"
+                  ? "Character audio: TTS not configured (text-only)."
+                  : `Character audio: TTS ${rec.tts.status}${rec.tts.error ? ` — ${rec.tts.error}` : ""}. Text reply preserved.`,
+            );
+          }
           setLines((prev) => [
             ...prev,
             { who: `diarized speaker=${rec.speaker ?? "?"} (${rec.kind})`, text: rec.transcript, reply: false },
@@ -164,6 +256,11 @@ export default function Page() {
                 sparkMs: rec.timing.sparkMs ?? null,
                 publishMs: null, // known only after publish resolves; follow-up joins it
                 firstTokenMs: rec.timing.firstTokenMs ?? null,
+                sparkFirstTokenMs: rec.timing.sparkFirstTokenMs ?? null,
+                firstSentenceMs: rec.timing.firstSentenceMs ?? null,
+                firstTtsChunkMs: rec.timing.firstTtsChunkMs ?? null,
+                firstAudioPublishMs: rec.timing.firstAudioPublishMs ?? null,
+                ttsMs: rec.timing.ttsMs ?? null,
               } : null,
             };
             currentRef.current = joined;
@@ -175,7 +272,33 @@ export default function Page() {
           }
         } catch { /* ignore malformed data packets */ }
       });
-      room.on(RoomEvent.Disconnected, () => { setConnected(false); setStatus("Disconnected."); });
+      // Ticket 003 Gate C: attach remote character audio; detach on mute/
+      // unpublish/disconnect. Autoplay rejection surfaces as a visible
+      // Start audio control (startAudio below), never silent silence.
+      room.on(
+        RoomEvent.TrackSubscribed,
+        (track: RemoteTrack, publication: RemoteTrackPublication) => {
+          if (track.kind !== Track.Kind.Audio) return;
+          const el = track.attach() as HTMLMediaElement;
+          el.addEventListener("playing", noteAudioPlaying);
+          audioElsRef.current.set(publication.trackSid, el);
+          (audioHostRef.current ?? document.body).appendChild(el);
+          noteAudioAttached();
+          void el.play().catch(() => {
+            setAudioBlocked(true);
+            setAudioStatus("Character audio: autoplay blocked. Click Start audio, then replay speech. Headphones recommended.");
+          });
+        },
+      );
+      room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, publication: RemoteTrackPublication) => {
+        for (const el of track.detach() as HTMLMediaElement[]) el.remove();
+        audioElsRef.current.delete(publication.trackSid);
+      });
+      room.on(RoomEvent.Disconnected, () => {
+        detachAllAudio();
+        setConnected(false);
+        setStatus("Disconnected.");
+      });
       await room.connect(url, data.token);
       await room.localParticipant.setMicrophoneEnabled(true);
       setConnected(true);
@@ -183,12 +306,13 @@ export default function Page() {
     } catch (err) {
       setStatus(`Could not connect: ${(err as Error).message}`);
     }
-  }, [finishWithDomCommit, upsertAttempt]);
+  }, [detachAllAudio, finishWithDomCommit, noteAudioAttached, noteAudioPlaying, upsertAttempt]);
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    detachAllAudio();
     void roomRef.current?.disconnect();
-  }, []);
+  }, [detachAllAudio]);
 
   const measuredCount = attempts.filter((a) => !a.isWarmup).length;
   const nextIndex = attempts.length === 0 ? 0 : measuredCount + 1; // 0=warm-up
@@ -207,7 +331,11 @@ export default function Page() {
     const index = isWarmup ? 0 : attemptsRef.current.filter((a) => !a.isWarmup).length + 1;
     const attempt: DiagAttempt = {
       turnId: newId("turn"), index, isWarmup, outcome: "missing", pending: true,
-      browser: { speechStartProxyAtMs: performance.now(), speechEndProxyAtMs: null, dataReceiptAtMs: null, domCommitAtMs: null },
+      browser: {
+        speechStartProxyAtMs: performance.now(), speechEndProxyAtMs: null,
+        dataReceiptAtMs: null, domCommitAtMs: null,
+        audioAttachedAtMs: null, audioPlayingAtMs: null,
+      },
       agent: null,
     };
     currentRef.current = attempt;
@@ -317,13 +445,22 @@ export default function Page() {
         <div>
           <p className="status" role="status">{status}</p>
           <button onClick={connected ? disconnect : connect}>{connected ? "Leave" : "Join room"}</button>
+          {" "}
+          <button onClick={startAudio} disabled={!connected}>Start audio</button>
+          <p className="status" role="status">{audioStatus}</p>
+          {audioBlocked && (
+            <p role="alert" style={{ fontSize: 13 }}>
+              Audio playback is blocked by the browser. Click Start audio (user activation), use headphones, then speak again.
+            </p>
+          )}
+          <div ref={audioHostRef} aria-hidden="true" />
         </div>
       </div>
 
       <section aria-label="Latency diagnostic (Ticket 019)" style={{ marginTop: 24, border: "1px solid #2a2f2c", padding: 16 }}>
         <label>
           <input type="checkbox" checked={diagEnabled} onChange={(e) => setDiagEnabled(e.target.checked)} />
-          {" "}Latency diagnostic (Ticket 019, opt-in \u2014 pre-TTS baseline, not REQ-40 first-audio)
+          {" "}Latency diagnostic (Ticket 019 baseline, extended by Ticket 003 with TTS/playback proxies \u2014 still not REQ-40 first-audio proof)
         </label>
         {diagEnabled && (
           <div style={{ display: "grid", gap: 10, marginTop: 12 }}>

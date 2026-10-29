@@ -125,6 +125,109 @@ The report exits nonzero on malformed, incomplete, or failing baseline data.
 Send the report output and the export location to the verifier; do not claim
 a REQ-40 first-audio PASS from this pre-TTS baseline.
 
+## Ticket 003 extension (TTS + playback proxies)
+
+Same export file and report CLI; new fields are additive and nullable.
+
+| Measurement | Definition | Clock |
+| --- | --- | --- |
+| `sparkFirstTokenMs` | Spark request start → first streamed token | agent |
+| `firstSentenceMs` | Spark request start → first complete sentence emitted | agent |
+| `firstTtsChunkMs` | Spark request start → first TTS PCM chunk received | agent |
+| `firstAudioPublishMs` | Spark request start → first PCM frame handed to LiveKit `AudioSource` | agent |
+| `ttsMs` | Whole-turn TTS synthesis + publish elapsed | agent |
+| `markerToAudioPlayingMs` | Operator Finished-speaking click → audio element `playing` event. **Manual proxy, not physical first-audio proof.** | browser |
+| `startToAudioPlayingMs` | Operator Start-turn click → audio `playing` event | browser |
+
+Rules unchanged: one clock per duration, never subtract browser from agent,
+unavailable = `null` with a reason in the agent record, failures/timeouts/
+duplicates always reported. REQ-40 (warm first-audio p50 < 2.5 s, p95 < 4 s)
+is **not** passed by these proxies: physical speech-end and first audible
+playback need a defensible observation (e.g. reviewed timing of a consented
+local recording with headphones). If only proxies exist, mark the exact
+acceptance unverified.
+
+Interruption policy: a new turn, disconnect, or shutdown cancels the active
+Spark/TTS turn (`AbortController`), clears queued audio, and never plays
+stale speech. Full barge-in during playback is deferred; cancellation is
+the documented behavior. Use headphones: the agent must not transcribe its
+own audio (diarization is never disabled as a shortcut).
+
+Speech benchmark command (after Gates B–D, with agent + app + LiveKit up and
+TTS env set in `agent/.env`): open the app, tick the diagnostic, then one
+declared warm-up + 20 measured real speech turns exactly as above, export,
+and run the same report CLI. Unsupported flags are rejected by the CLIs;
+there is no separate `--speech` flag.
+
+### 20-turn live run (2026-10-29, run-b4888cd9, pre-consistency-fix pipeline)
+
+Report: `COMPLETE` — 1 warm-up excluded, 20 attempted, 20 successful, 0
+failed/timed-out/missing/duplicate/invalid. Percentiles (nearest-rank):
+
+| Metric (clock) | p50 | p95 | Note |
+| --- | --- | --- | --- |
+| `sparkFirstTokenMs` (agent) | 4962 | 6592 | **Dominant stage** |
+| `firstSentenceMs` (agent) | 4980 | 6699 | ~18 ms after first token |
+| `firstTtsChunkMs` (agent) | 5528 | 7250 | ~548 ms after first sentence |
+| `firstAudioPublishMs` (agent) | 5528 | 7251 | Publish ≈ free |
+| `sparkMs` (agent) | 5067 | 6764 | Full stream barely outlasts TTFT |
+| `ttsMs` (agent, old per-sentence) | 11821 | 21693 | Superseded by reply-level synthesis; rerun pending |
+| `markerToAudioPlayingMs` (browser proxy) | — | — | **Unavailable 20/20**: page gated stamps on `pending`; fixed after this export |
+
+REQ-40 verdict on this run: **FAIL (honest bound).** Even stacking only
+defensible agent segments — VT speechEnd→complete p50 0 ms +
+complete→Spark 2 ms + Spark→first-PCM-publish 5528 ms — first audible
+playback cannot be earlier than ~5.5 s p50 / ~7.3 s p95, above the
+<2.5 s / <4 s budget, before any browser/network delay. The cause is Spark
+time-to-first-token, not TTS or LiveKit. The manual proxies
+(`markerToVisibleMs` p50 ~12.3 s) include human marker + speaking time and
+must never be quoted as latency.
+
+### TTFT fix found + measured (2026-10-29): reasoning effort
+
+Root cause of the 5 s TTFT: Spark spends **~650–770 invisible reasoning
+tokens** before the first visible token at the model default. Measured with
+a streamed probe (same persona prompt, 3 runs each, Meta API):
+
+| Variant | Reasoning tokens | TTFT median |
+| --- | --- | --- |
+| default (no param) | ~700 | 3881 ms (one 13 s cold run) |
+| `reasoning_effort=low` | ~330 | 2681 ms |
+| `reasoning_effort=minimal` | ~75 | **1130 ms** |
+
+Wire facts (HTTP 400 messages + probe): the nested `reasoning:{effort}`
+object is rejected on Chat Completions; supported values are
+`minimal|low|medium|high|xhigh|max` (`none` rejected). Small `max_tokens`
+is dangerous — reasoning eats the budget and replies come back empty.
+Prompt caching showed `cached_tokens=0` here (short prefix; it is a cost
+lever, not the TTFT lever).
+
+Fix shipped: `reasoning_effort` (env `MODEL_REASONING_EFFORT`, default
+`minimal`) on both Spark calls in `decide.ts`, validated against the
+supported set. Verified through the real agent path (`decideStream`):
+first token **755–930 ms** over 3 runs with intact reply quality.
+Projected first-audio ≈ TTFT + ~0.1 s stream tail + ~0.55 s TTS TTFB ≈
+**1.5 s**, inside the REQ-40 p50 budget — but REQ-40 stays UNVERIFIED
+until a fresh warm 20-turn live run (with the reply-level TTS mode and the
+fixed audio stamping) produces defensible numbers.
+
+### First live decomposition (one observed turn, agent clock, Spark-start relative)
+
+| Stage boundary | At (ms) | Segment |
+| --- | --- | --- |
+| Spark first token / first sentence | 3366 | Spark request → first token dominates everything downstream |
+| Spark stream complete | 3483 | Only ~117 ms after first token: once tokens start, the reply lands fast |
+| First TTS bytes | 3992 | ~509 ms after first sentence (endpoint TTFB, consistent with smoke ~0.5 s) |
+| First PCM published to LiveKit | 3997 | ~5 ms publish cost — negligible |
+
+Do not sum these; they overlap by design (first-sentence synthesis started
+~117 ms before Spark completed — overlap verified for this turn). The
+dominant latency stage is **Spark time-to-first-token**, not TTS or LiveKit.
+These are agent-clock segments, NOT physical speech-end→first-audio latency.
+REQ-40 (<2.5 s p50 / <4 s p95) can only be judged from a defensible
+first-audible observation over the warm 20-turn run; the browser
+`markerToAudioPlayingMs` proxy is reported separately and never renamed.
+
 ## Offline verification
 
 From the repo root, with the app dev server stopped:
@@ -132,4 +235,5 @@ From the repo root, with the app dev server stopped:
 ```bash
 env -u NODE_ENV pnpm build
 node --test agent/scripts/live-latency-report.test.mjs
+node --test agent/scripts/tts-core.test.mjs agent/scripts/tts-provider.test.mjs
 ```

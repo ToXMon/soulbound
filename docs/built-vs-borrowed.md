@@ -14,6 +14,10 @@ else in the repo is new work written for SOULBOUND.
 | Two-speaker test fixture `agent/fixtures/hello-two-speaker.wav` | Open Speech Repository (voiptroubleshooter.com), clips `OSR_us_000_0010_8k.wav` (female) + `OSR_us_000_0030_8k.wav` (male) | Borrowed audio, credited | Free to use/publish with credit to the Open Speech Repository. Alternating 6s segments with silence gaps, resampled to 16kHz mono 16-bit with ffmpeg. Used only by the latency harness; never in the product path. |
 | WS client for VT auth headers | `ws` | Library dependency | Node's global WebSocket cannot set an `Authorization` header. |
 | observe / orient / decide / act pipeline, persona placeholder, stranger fallback (REQ-42), latency harness (REQ-40) | — | **Built for SOULBOUND** | `agent/src/`, `agent/scripts/latency-harness.ts`. |
-| UI (join/leave, transcript + reply render, character placeholder) | — | **Built for SOULBOUND** | `app/app/page.tsx`; static placeholder only, no TTS (Ticket 003), no Muse Image. |
+| UI (join/leave, transcript + reply render, character placeholder) | — | **Built for SOULBOUND** | `app/app/page.tsx`; static placeholder only, no Muse Image. Ticket 003 adds remote-audio attach/playback + Start audio. |
+| VoxCPM2 model + Voice Design format `(description)text`, `seed` | `OpenBMB/VoxCPM` + `openbmb/VoxCPM2` (Apache-2.0), HF revision `32279effe8c19989596f05d353d1447f51d9e915` | External model + format reference | Speech renderer only (D13/D15); never a conversational model. No reference audio of any real person. |
+| vLLM-Omni TTS serving (`/v1/audio/speech`, streaming PCM) | `vllm-project/vllm-omni` v0.32.0; image `vllm/vllm-omni:v0.32.0@sha256:6b44ee504a0dc3a21eacf72e7dc5da318b7bcc8ed0e349dc928e67278414430c` | Pinned upstream image + API contract | Client shape verified against the v0.32.0 TTS README, VoxCPM2 client, deploy YAML and Speech API docs. Live endpoint proof is Gate B. |
+| Akash tenant deployment method | `akash-network/akash-skill` @ `7bc7e5aa11edccbe285a95bab2dd5dbb5f6cccac` | Official skill/guides reference | Pricing, compute-resource, lifecycle, wallet and GPU guides followed; self-custody `provider-services` path kept. |
+| TTS adapter, sentence assembler, PCM framer, ordered LiveKit publisher, smoke/readiness scripts | — | **Built for SOULBOUND** | `agent/src/tts.ts`, `agent/src/tts-core.ts`, `scripts/tts-*.sh`, `akash/deploy.yml`. |
 
-Not borrowed, not present: TTS/VoxCPM2 (Ticket 003), memory graph, anything on-chain, Muse Image, deployment.
+Not borrowed, not present: memory graph, anything on-chain, Muse Image.
