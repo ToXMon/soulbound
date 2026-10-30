@@ -9,6 +9,7 @@
   "dependencies": {
     "@livekit/agents": "^0.7.0",
     "@livekit/rtc-node": "^0.13.35",
+    "@solana/kit": "8.6.0",
     "js-sha3": "^0.13.0",
     "openai": "^4.104.0",
     "ws": "^8.22.0"

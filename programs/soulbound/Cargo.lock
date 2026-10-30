@@ -4832,6 +4832,7 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "base64 0.22.1",
  "borsh 1.8.1",
  "litesvm",
  "mpl-core",

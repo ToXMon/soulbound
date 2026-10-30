@@ -46,6 +46,32 @@ Stored record (JSON):
 
 Ticket 005 commits `manifest.root` (with `epoch` and `character_id`) via `commit_memory_root`. It must reproduce canonical JSON, `content_hash`, leaf sorting, pair hashing and odd-duplication exactly as above; manifests on disk are the source of the ordered leaf set for proof generation.
 
+### Ticket 005 chain handoff (not a change to the hash protocol)
+
+`agent/scripts/commit-memory-root.mjs` is an explicit, separate operator process;
+there is no RPC, committer import or scheduler in the voice worker. Stop the
+worker and inspect shutdown extraction counters first. Only a fully settled
+queue with zero failed/dropped/pending jobs may be described as a complete
+session. Failed/interrupted jobs are not durable and require explicit replay;
+sealing cannot discover or repair jobs that were never persisted.
+
+Configure the **actual owner public key** and **canonical decimal u64 character
+ID** before a real session. Existing aliases such as `char-elder` are rejected;
+never rewrite sealed records or guess an alias mapping. Seal explicitly with
+`--seal --session-settled` (operator attestation, not an automated completeness
+proof), then run `--epoch <actual sealed epoch> --dry-run`. Opening the store
+reuses 004's exclusive namespace lock and validates all manifests/record bytes;
+the committer rechecks record hashes and manifest proofs before preparation.
+
+`manifest.root` is decoded from exactly 64 hex characters to exactly 32 bytes,
+never hashed as text. Epoch zero stays zero. Config PDA seeds stay
+`[b"character", owner bytes, character_id u64 LE]`; history seeds are
+`[b"memory_roots", config PDA bytes]` under the same program. Public chain state
+contains only roots/epochs/timestamps and config identity. Private summaries,
+provenance and the submission journal remain local. Inclusion is not truth,
+data availability, or proof that every conversation was extracted. See
+`docs/005-committer-runbook.md` for approvals, recovery and proof readback.
+
 ## Failure handling summary
 
 | Failure | Behavior |

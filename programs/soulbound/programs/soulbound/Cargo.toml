@@ -20,7 +20,7 @@ custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = "=1.2.1"
+anchor-lang = { version = "=1.2.1", features = ["init-if-needed"] }
 anchor-spl = { version = "=1.2.1", features = ["token_2022", "token_2022_extensions", "associated_token"] }
 mpl-core = { version = "=0.12.1", features = ["borsh-v1"] }
 

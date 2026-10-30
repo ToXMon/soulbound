@@ -20,7 +20,7 @@ const TOKEN_2022_ID: Pubkey = Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPF
 const ATA_ID: Pubkey = Pubkey::from_str_const("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 const RENT_ID: Pubkey = Pubkey::from_str_const("SysvarRent111111111111111111111111111111111");
 
-fn setup() -> (LiteSVM, Keypair) {
+pub(super) fn setup() -> (LiteSVM, Keypair) {
     let mut svm = LiteSVM::new();
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 100_000_000_000).unwrap();
@@ -56,14 +56,14 @@ fn ix_data(character_id: u64, runtime_signer: Pubkey, trait_vector: &str) -> Vec
     d
 }
 
-struct Minted {
+pub(super) struct Minted {
     asset: Keypair,
     mint: Keypair,
-    config: Pubkey,
+    pub(super) config: Pubkey,
 }
 
 /// Build + send `initialize_character`; returns the transaction result.
-fn initialize(
+pub(super) fn initialize(
     svm: &mut LiteSVM,
     payer: &Keypair,
     owner: &Keypair,
@@ -108,7 +108,7 @@ fn initialize(
     )
 }
 
-fn read_config(svm: &LiteSVM, config: &Pubkey) -> CharacterConfig {
+pub(super) fn read_config(svm: &LiteSVM, config: &Pubkey) -> CharacterConfig {
     let acct = svm.get_account(config).expect("config exists");
     CharacterConfig::deserialize(&mut &acct.data[8..]).expect("config deserializes")
 }

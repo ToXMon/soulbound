@@ -20,6 +20,7 @@ solana-sdk-ids = "3"
 spl-associated-token-account-interface = "2"
 spl-token-2022-interface = "3"
 borsh = "1"
+base64 = "0.22"
 
 [lib]
 path = "src/lib.rs"

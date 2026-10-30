@@ -192,7 +192,44 @@ REQ-05 was additionally mutation-checked during the session: with the
 detecting the extension, not passing vacuously. This is a self-check by the doer, not a
 substitute for your independent run.
 
-## 10. What was not verified
+## Ticket 005 offline reproduction (no wallet mount)
+
+Use the existing `sb-anchor:1.2.1` image; do not rebuild from the unpinned
+`stable` installer above or upgrade Rust/Anchor/Solana for 005. Observed image ID:
+`sha256:51226d2c26d2a30dad66010fb9c875caa948d1238dfebe8bc079cdf1a118334e`.
+Versions remain Anchor 1.2.1, Solana 4.3.2, host Rust 1.99.1.
+
+```bash
+docker run --rm -v sbcargo:/usr/local/cargo/registry \
+  -v /home/opadmin/soulbound/programs/soulbound:/w -w /w \
+  sb-anchor:1.2.1 sh -c \
+  'anchor build && cargo test -p tests -- --nocapture --test-threads=1'
+cmp target/idl/soulbound.json idl/soulbound.json
+```
+
+`idl/soulbound.json` is the generated 005 IDL snapshot. No key is needed for
+these checks. Preserve `target/deploy/soulbound-keypair.json`; never run keygen,
+`anchor keys sync`, `anchor test --skip-local-validator`, or a deploy during
+offline verification. The CLI reports the pre-existing dual crate-type/LTO
+warning; no stack-offset warning was observed. The suite now has 9 tests,
+including the unchanged 5 genesis cases and 2 amended rotation cases (existing
+history and untouched genesis without history). New tests decode the actual SBF event
+log, fill all 128 entries, check all previous entries and config epoch, and
+assert typed rejection codes/unchanged state. Rent: 6,189 bytes, 32,090,360
+lamports in LiteSVM. No devnet upgrade is implied by a successful local build.
+
+Rotation adds no dependencies, account fields, space or reallocations. Its LiteSVM
+case snapshots config, history, Core asset, receipt mint and owner receipt ATA;
+only config bytes 48..80 may change. It decodes the actual rotation event, checks
+both signatures/no-op/foreign-config failures and verifies old/new runtime root
+commit behavior with unchanged epoch progression. All keys in this suite are
+ephemeral test fixtures; no persistent replacement key was created on the VPS.
+
+The generated 005 IDL includes `rotate_runtime_signer` and `RuntimeSignerRotated`.
+No live upgrade/rotation is implied. Mac operator instructions and separately
+gated deployer-key remediation proposals are in `docs/005-committer-runbook.md`.
+
+## 10. What was not verified (Ticket 002 historical scope)
 
 - `commit_memory_root`, `evolve_traits`, `crank_heartbeat` — out of scope (later tickets).
 - The Core Oracle plugin (REQ-04) — Ticket 005.

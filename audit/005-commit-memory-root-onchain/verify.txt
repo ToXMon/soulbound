@@ -1,0 +1,81 @@
+Ticket 005 independent verification — AdaL (thinker), 2026-10-30
+All commands executed by AdaL on Tolu's Mac (arm64) in the pinned Docker image
+sb-anchor:1.2.1 (solana-cli 4.3.2, anchor-cli 1.2.1). No signing keys mounted;
+all chain reads via PUBLIC devnet RPC (api.devnet.solana.com). Nothing broadcast.
+
+1) anchor build + LiteSVM suite (pinned image, repo mounted read-write for target/):
+   $ docker run --rm -v sbcargo:/usr/local/cargo/registry \
+       -v $PWD/programs/soulbound:/w -w /w sb-anchor:1.2.1 sh -c \
+       'anchor build && cargo test -p tests -- --nocapture --test-threads=1'
+   anchor build: emitted the expected dual crate-type/LTO warning and a program-ID
+   keypair mismatch WARNING (see finding F2) but completed.
+   cargo test: 9 passed; 0 failed; 0 ignored (4.91s)
+     - test_commit_memory_root::req10_13_epoch_zero_append_immutable_event_rent_and_capacity
+         history size=6189 rent=32090360 CU=11433
+     - test_commit_memory_root::req11_12_rejections_are_atomic_and_initialization_authenticated
+     - test_initialize_character::req01..req07 (5 genesis tests)
+     - test_rotate_runtime_signer::amendment_dual_signature_rotation_preserves_every_other_byte_and_req11
+     - test_rotate_runtime_signer::amendment_recovers_genesis_without_history_or_old_runtime_signature
+
+2) IDL snapshot comparison:
+   $ cmp programs/soulbound/target/idl/soulbound.json programs/soulbound/idl/soulbound.json
+   -> identical (exit 0)
+
+3) Rebuilt binary vs deployed bytes:
+   $ shasum -a 256 programs/soulbound/target/deploy/soulbound.so
+   15eef67ee87b8d87ffe669d3178c1d0319d458eea2ead3c59b3b04cc95b43d77  (227,544 bytes)
+   = exactly the SHA-256 recorded in docs/devnet.md as matching the deployed
+   executable bytes. Local rebuild reproduces the deployed program bit-for-bit.
+
+4) Offline node test suite:
+   $ node --test agent/scripts/committer.test.mjs agent/scripts/memory.test.mjs \
+       agent/scripts/tts-core.test.mjs agent/scripts/tts-provider.test.mjs \
+       agent/scripts/pipeline-tts.test.mjs agent/scripts/live-latency-report.test.mjs
+   tests 61, pass 61, fail 0 (13.6s)
+
+5) Full build:
+   $ env -u NODE_ENV pnpm build   -> exit 0 (app + agent build clean)
+
+6) CLI dry-run: NOT REPRODUCIBLE in the current environment (finding F1):
+   $ node --env-file=agent/.env agent/scripts/commit-memory-root.mjs --epoch 0 --dry-run
+   [committer] missing setting MEMORY_OWNER_ID
+   agent/.env currently contains only LIVEKIT_*/META_*/TTS_*/MODEL_* keys; no
+   MEMORY_* committer settings are configured on this Mac right now.
+
+7) Independent public-RPC readback (no keys, no private endpoints):
+   - Program BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd: account exists,
+     executable flag set.
+   - Config PDA 74dRYy2RARkhQs963QcGZdVXhfjABm2BGC7WFwSd7Ehc: 154 bytes;
+     bytes 48..80 decode to runtime signer 2CU934FR5LwgnngkBYTH2yzYvJ7UeXvSNYUnaoZBd6HM
+     (the Mac-created replacement — rotation is installed on-chain).
+   - History PDA BVF8KRRGK6CV55GaQd4KdJFhYtrKX1GekFdoVpn1AY6p: 6,189 bytes;
+     config association = 74dRYy2…; entry count 1; entry: epoch 0,
+     root 67929cc8390f37f570f24420c3c83c7e176afbdfd14b751e5b837d9704a2092c,
+     chain timestamp 1793391886; remaining capacity zeroed.
+     All three values match docs/devnet.md exactly.
+   - getTransaction on public RPC (encoding json, maxSupportedTransactionVersion 0):
+     3nmoSZda… (upgrade)      slot 516875467  err null
+     2pASnTptr… (rotation)    slot 516879577  err null
+     5bBDiPfw8… (memory root) slot 516893750  err null
+     Slots match the receipts in docs/devnet.md exactly.
+
+8) Not independently re-executed (labeled, not claimed):
+   - Off-chain Merkle proof recomputation and tamper-failure checks against the
+     private Mac-local 004 store (performed by the doer; root value on chain
+     independently confirmed above; store itself not opened by AdaL).
+   - Live commit path with configured MEMORY_* env (blocked by F1).
+   - The exact runtime signer of the pre-upgrade genesis (f97njk… is doer-reported;
+     current signer independently read as 2CU9…).
+
+Findings:
+  F1 (minor, operator): agent/.env on this Mac has no MEMORY_* committer
+      configuration; the ticket's documented dry-run command fails visibly (by
+      design) until configured from agent/.env.example per the runbook.
+  F2 (hazard, operator): programs/soulbound/target/deploy/soulbound-keypair.json
+      on this Mac derives public key 7VRcVdvsaAZdNAn4wcSwNPVrJGc8LbSLzg4qL8oXrCuv,
+      which does NOT match the pinned program ID. It was created 2026-10-30
+      17:44 local (origin unclear — possibly a stray keygen during an earlier
+      local run). It did not affect this build/test verification, but any future
+      `solana program deploy` using this file would create a DIFFERENT program.
+      Recommend deleting it or replacing it with the VPS-held correct keypair.
+      Never run `anchor keys sync` against it.

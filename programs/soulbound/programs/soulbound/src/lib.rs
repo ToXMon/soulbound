@@ -13,6 +13,20 @@ declare_id!("BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd");
 pub mod soulbound {
     use super::*;
 
+    /// Ticket 005 amendment: owner-authorized recovery with replacement proof of possession.
+    pub fn rotate_runtime_signer(ctx: Context<RotateRuntimeSigner>) -> Result<()> {
+        instructions::rotate_runtime_signer::rotate_runtime_signer_handle(ctx)
+    }
+
+    /// REQ-10..13: authenticated append-only memory lineage, off the voice path.
+    pub fn commit_memory_root(
+        ctx: Context<CommitMemoryRoot>,
+        epoch: u64,
+        root: [u8; 32],
+    ) -> Result<()> {
+        instructions::commit_memory_root::commit_memory_root_handle(ctx, epoch, root)
+    }
+
     /// REQ-01..03, 05..07: birth of a character.
     pub fn initialize_character(
         ctx: Context<InitializeCharacter>,

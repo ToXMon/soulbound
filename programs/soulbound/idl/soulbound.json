@@ -1,0 +1,556 @@
+{
+  "address": "BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd",
+  "metadata": {
+    "name": "soulbound",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "SOULBOUND: verifiable on-chain character birth"
+  },
+  "instructions": [
+    {
+      "name": "commit_memory_root",
+      "docs": [
+        "REQ-10..13: authenticated append-only memory lineage, off the voice path."
+      ],
+      "discriminator": [
+        141,
+        172,
+        83,
+        34,
+        85,
+        251,
+        194,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  104,
+                  97,
+                  114,
+                  97,
+                  99,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.owner",
+                "account": "CharacterConfig"
+              },
+              {
+                "kind": "account",
+                "path": "config.character_id",
+                "account": "CharacterConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "runtime_signer",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Explicit rent payer; need not be the character owner or runtime."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "history",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  111,
+                  114,
+                  121,
+                  95,
+                  114,
+                  111,
+                  111,
+                  116,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch",
+          "type": "u64"
+        },
+        {
+          "name": "root",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize_character",
+      "docs": [
+        "REQ-01..03, 05..07: birth of a character."
+      ],
+      "discriminator": [
+        82,
+        30,
+        2,
+        32,
+        52,
+        45,
+        168,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  104,
+                  97,
+                  114,
+                  97,
+                  99,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "character_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset",
+          "docs": [
+            "New Core asset keypair (signs its own creation)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "receipt_mint",
+          "docs": [
+            "New Token-2022 receipt mint keypair."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner_receipt_ata",
+          "writable": true
+        },
+        {
+          "name": "core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "character_id",
+          "type": "u64"
+        },
+        {
+          "name": "runtime_signer",
+          "type": "pubkey"
+        },
+        {
+          "name": "trait_vector",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "rotate_runtime_signer",
+      "docs": [
+        "Ticket 005 amendment: owner-authorized recovery with replacement proof of possession."
+      ],
+      "discriminator": [
+        100,
+        60,
+        181,
+        73,
+        242,
+        56,
+        107,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  104,
+                  97,
+                  114,
+                  97,
+                  99,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.owner",
+                "account": "CharacterConfig"
+              },
+              {
+                "kind": "account",
+                "path": "config.character_id",
+                "account": "CharacterConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "replacement",
+          "signer": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "CharacterConfig",
+      "discriminator": [
+        216,
+        141,
+        157,
+        197,
+        246,
+        187,
+        45,
+        162
+      ]
+    },
+    {
+      "name": "MemoryRootHistory",
+      "discriminator": [
+        241,
+        192,
+        67,
+        11,
+        30,
+        14,
+        92,
+        49
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "MemoryRootCommitted",
+      "discriminator": [
+        42,
+        184,
+        253,
+        59,
+        50,
+        242,
+        56,
+        143
+      ]
+    },
+    {
+      "name": "RuntimeSignerRotated",
+      "discriminator": [
+        165,
+        199,
+        4,
+        46,
+        195,
+        151,
+        200,
+        239
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "TraitVectorTooLong",
+      "msg": "Trait vector exceeds the maximum allowed length"
+    },
+    {
+      "code": 6001,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6002,
+      "name": "UnauthorizedRuntime",
+      "msg": "Only the configured runtime signer may commit memory roots"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidMemoryRoot",
+      "msg": "Memory root must not be zero"
+    },
+    {
+      "code": 6004,
+      "name": "NonIncreasingEpoch",
+      "msg": "Epoch must be strictly greater than the last committed epoch"
+    },
+    {
+      "code": 6005,
+      "name": "MemoryHistoryFull",
+      "msg": "Memory root history is full"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidHistory",
+      "msg": "Memory root history is bound to another config or bump"
+    },
+    {
+      "code": 6007,
+      "name": "UnauthorizedOwner",
+      "msg": "Only the configured owner may rotate the runtime signer"
+    },
+    {
+      "code": 6008,
+      "name": "UnchangedRuntimeSigner",
+      "msg": "Replacement runtime signer must differ from the current signer"
+    }
+  ],
+  "types": [
+    {
+      "name": "CharacterConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "character_id",
+            "type": "u64"
+          },
+          {
+            "name": "runtime_signer",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "receipt_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "memory_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "life_stage",
+            "type": {
+              "defined": {
+                "name": "LifeStage"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LifeStage",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Born"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemoryRootCommitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemoryRootEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "Unix seconds from the chain Clock."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemoryRootHistory",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "MemoryRootEntry"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RuntimeSignerRotated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_signer",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_signer",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ]
+}
