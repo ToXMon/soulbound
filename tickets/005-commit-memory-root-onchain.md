@@ -9,6 +9,33 @@ TL;DR: Anchor validated sealed memory roots on Solana devnet, asynchronously and
 
 Implement REQ-10 (append epoch/root/timestamp), REQ-11 (runtime signer only), REQ-12 (reject duplicate/regressed epochs), REQ-13 (root event). Bridge validated Ticket 004 manifests to the character's root history without placing chain RPC in the voice path. This does not implement recall, traits, heartbeat, privacy challenges or judge minting.
 
+## Amendment: runtime-signer rotation (authorized by Tolu Shekoni, 2026-10-29)
+
+This ticket additionally implements an owner-authorized runtime-signer replacement instruction. Rationale: a lost or compromised runtime signer would otherwise permanently lock `commit_memory_root` and future signed instructions. The amendment is scoped exactly as follows; anything beyond it remains out of scope.
+
+**Authorized scope:**
+1. New instruction `rotate_runtime_signer` requiring BOTH the config owner's signature AND the proposed replacement signer's signature. Either alone must fail. A rotation to the current signer (no-op) must be rejected.
+2. Preservation guarantees: program ID, config PDA seeds and `CharacterConfig` layout/serialization compatibility, Core asset, receipt mint, `memory_epoch`, and any committed root history are untouched by rotation. Only the `runtime_signer` field changes. Existing account data must deserialize identically post-rotation.
+3. Rotation emits a parseable event carrying config identity, old signer, new signer and chain timestamp. LiteSVM tests must prove: unauthorized rotation (owner alone, replacement alone, unrelated signer) fails; after rotation the OLD signer can no longer execute `commit_memory_root` (REQ-11 regression); the NEW signer can; and a failed rotation leaves all state unchanged.
+4. Key handling: create a NEW dedicated replacement runtime keypair on Tolu's Mac via `solana-keygen new` (or equivalent), stored only in Tolu's local secure key storage. This is creation of a new key, never regeneration/overwrite of existing program, deployer or genesis keys. The replacement public key is shared for configuration; the secret never leaves the Mac, never enters the repo, chat, SDL, or evidence.
+5. Remediate the insecure VPS deployer-key copy as an explicit, separately approved action: identify the exposed key file, and on Tolu's approval either move it off the VPS to secure local storage or, if the key cannot be reliably recovered/protected, document a follow-up rotation of the program upgrade authority with exact commands (that rotation is its own gated action, not part of this ticket's default run). Never print or transmit key material. Record the remediation taken in the ticket report without exposing paths containing secrets beyond what documentation already pins.
+6. Approval gates unchanged and additive: the devnet program upgrade (now required, since rotation adds an instruction), any funding, and ANY first transaction involving the new signer each require a separate, exact-action approval from Tolu (action, authorities, payer, SOL estimate) before broadcast.
+7. Memory storage stays Mac-local per the existing contract; no Neon or external database integration in this ticket. The live root commit is prepared from Tolu's local sealed manifest.
+
+**Implementation notes:**
+- `commit_memory_root` continues to require the CURRENT `config.runtime_signer` (REQ-11 semantics unchanged). Rotation is the only path that changes that field.
+- Config account space: rotation changes no field sizes; no reallocation needed. State this in a test assertion.
+- The committer/CLI gains no automatic rotation behavior. Rotation is an operator action via explicit CLI command (e.g. `rotate-runtime-signer`), gated on the dual-signature transaction and Tolu's approval.
+- If a rotation instruction conflicts with any architecture REQ as written, STOP and report the conflict; do not edit REQ tables. REQ-11 remains satisfied (a stale signer is rejected).
+
+**Amendment acceptance criteria (each observable):**
+- [ ] LiteSVM: dual-signature rotation succeeds; owner-only, replacement-only, unrelated-signer, and no-op (same signer) rotations all fail with typed errors and unchanged state.
+- [ ] Post-rotation: old signer's `commit_memory_root` fails; new signer succeeds (epoch progression rules unchanged); config.layout/serialization, asset, receipt, memory_epoch and history preserved byte-compatibly.
+- [ ] Rotation event decodes with config, old signer, new signer, timestamp.
+- [ ] New runtime keypair created on the Mac; public key recorded in config/docs; no secret in repo, VPS artifacts or evidence.
+- [ ] VPS deployer-key remediation executed per the authorized option and recorded without exposing secrets.
+- [ ] Separate approvals obtained for: program upgrade, funding (if needed), first new-signer transaction, and any deployer-key remediation action.
+
 ## Prerequisite gate
 
 Read docs/004-review-and-005-readiness.md. Ticket 004's local implementation is `2d3c982`; verify which commit is present before working. Do not broaden 005 to silently fix 004. If manifest/proof validation and single-writer protection are not resolved in a reviewed 004 continuation, STOP before implementing or broadcasting 005. Retain existing root hashing semantics and supply regression tests for corrupt manifest mappings, malformed proof metadata and concurrent namespace writers. Live Meta extraction evidence must be clearly separate from offline fixtures.
