@@ -1,0 +1,8 @@
+Program ID mismatch detected for program 'soulbound':
+  Keypair file has: 7VRcVdvsaAZdNAn4wcSwNPVrJGc8LbSLzg4qL8oXrCuv
+  Source code has:  BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd
+
+Please run 'anchor keys sync' to update the program ID in your source code or use the '--ignore-keys' flag to skip this check.
+[2026-10-31T00:36:30.514710545Z WARN  cargo_build_sbf] Package 'soulbound' has two crate types defined: cdylib and lib. This setting precludes link-time optimizations (LTO). Use cdylib for programs to be deployed and rlib for packages to be imported by other programs as libraries.
+[2026-10-31T00:36:30.805859712Z ERROR cargo_build_sbf::toolchain] Failed to install platform-tools: error sending request for url (https://github.com/anza-xyz/platform-tools/releases/download/v1.57/platform-tools-linux-x86_64.tar.bz2)
+     It looks like the download has failed. If this is a persistent issue, try `cargo-build-sbf --install-only` to download from an alternative source.

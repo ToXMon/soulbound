@@ -1,0 +1,4 @@
+# Example only: install deliberately with crontab after substituting absolute paths.
+# Cron, not an AI reminder. Daily at 03:00 in the host's configured timezone.
+# The private wrapper sets explicit PATH/env and execs run-once.ts; see docs/dreams.md.
+0 3 * * * /ABSOLUTE/PRIVATE/PATH/dream-nightly.sh

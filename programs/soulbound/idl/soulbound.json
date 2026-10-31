@@ -121,6 +121,129 @@
       ]
     },
     {
+      "name": "evolve_traits",
+      "docs": [
+        "REQ-04, 20..22: runtime-gated full Attributes replacement and provenance."
+      ],
+      "discriminator": [
+        199,
+        36,
+        225,
+        87,
+        244,
+        237,
+        80,
+        41
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  104,
+                  97,
+                  114,
+                  97,
+                  99,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.owner",
+                "account": "CharacterConfig"
+              },
+              {
+                "kind": "account",
+                "path": "config.character_id",
+                "account": "CharacterConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "runtime_signer",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "dream",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  114,
+                  101,
+                  97,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_revision",
+          "type": "u64"
+        },
+        {
+          "name": "journal_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "new_attributes",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "TraitAttribute"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "initialize_character",
       "docs": [
         "REQ-01..03, 05..07: birth of a character."
@@ -301,6 +424,19 @@
       ]
     },
     {
+      "name": "DreamState",
+      "discriminator": [
+        116,
+        102,
+        247,
+        45,
+        126,
+        244,
+        251,
+        61
+      ]
+    },
+    {
       "name": "MemoryRootHistory",
       "discriminator": [
         241,
@@ -339,6 +475,19 @@
         151,
         200,
         239
+      ]
+    },
+    {
+      "name": "TraitsEvolved",
+      "discriminator": [
+        93,
+        81,
+        44,
+        128,
+        138,
+        227,
+        77,
+        129
       ]
     }
   ],
@@ -387,6 +536,31 @@
       "code": 6008,
       "name": "UnchangedRuntimeSigner",
       "msg": "Replacement runtime signer must differ from the current signer"
+    },
+    {
+      "code": 6009,
+      "name": "UnauthorizedTraitRuntime",
+      "msg": "Only the configured runtime signer may evolve traits"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidJournalHash",
+      "msg": "Journal hash must be nonzero and different from the previous journal"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidAttributes",
+      "msg": "Trait list is invalid, incomplete, duplicated, or exceeds bounds"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidDreamState",
+      "msg": "Dream provenance is bound to another config or bump"
+    },
+    {
+      "code": 6013,
+      "name": "StaleDreamRevision",
+      "msg": "Dream revision changed; fetch current attributes before proposing again"
     }
   ],
   "types": [
@@ -430,6 +604,42 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DreamState",
+      "docs": [
+        "Separate provenance account preserves the deployed 154-byte config layout."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "journal_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "revision",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }
@@ -544,6 +754,55 @@
           {
             "name": "new_signer",
             "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TraitAttribute",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "string"
+          },
+          {
+            "name": "value",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TraitsEvolved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "journal_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "revision",
+            "type": "u64"
           },
           {
             "name": "timestamp",

@@ -1,0 +1,28 @@
+✔ canonical u64, exact hex decode, preserved config/history derivation and actual IDL instruction (22.055958ms)
+✔ validated sealed manifest consumed; empty/unsealed and changed record bytes refused (435.098084ms)
+✔ dry-run default simulates, never signs/sends; private journal permissions (593.77425ms)
+✔ wrong cluster, identity, signer, program and PDA refused before signing (386.441834ms)
+✔ signature persisted BEFORE send; restart reconciles same root without resend (178.025792ms)
+✔ same epoch different root conflicts, including earlier journals when chain advances (114.153917ms)
+✔ ambiguous send accepted on chain reconciles; timeout with no readback stays pending (219.911417ms)
+✔ failed signature never becomes success; RPC ambiguity preserves pending journal (145.517209ms)
+✔ journal lock serializes concurrent invocations; corruption fails closed (78.29275ms)
+✔ actual adapter decodes config/history and refuses corrupt association (41.355458ms)
+✔ RPC transport retries reads only, sanitizes failures and bounds attempts (606.7795ms)
+✔ RPC outage has no voice integration; CLI missing settings fails visibly and help documents flags (1269.732917ms)
+✔ rotation: IDL-compatible dual-signature instruction, no writable asset/history accounts (25.665625ms)
+✔ rotation: dry-run never signs or broadcasts; no-op, wrong identity/cluster/runtime refused (309.343083ms)
+✔ rotation: approval is action/identity/cost/expiry bound, never implicit (19.672583ms)
+✔ rotation: signature durable before send, restart reconciles current signer without resend (61.287583ms)
+✔ rotation: ambiguous send stays pending, confirmation alone never proves readback, expiry checked before retry (70.781375ms)
+✔ rotation: failed send and corrupt journal stop without signing again (63.596958ms)
+✔ rotation adapter: unsigned simulation estimates fee with zero allocation rent, without opening keys (48.270333ms)
+✔ rotation CLI: explicit command, documented Mac-only signing, no settings or keys created by help/dry-run (714.511583ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5888.971

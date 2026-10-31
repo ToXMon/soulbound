@@ -1,0 +1,16 @@
+{
+  "state": "live-direct-meta-synthetic-input-check-passed",
+  "observedAt": "2026-10-31T03:02:25.943Z",
+  "liveProvider": true,
+  "syntheticFixtureInput": true,
+  "personalDataSent": false,
+  "models": {
+    "consolidation": "muse-spark-1.3",
+    "review": "muse-wonder-1.0"
+  },
+  "consolidatedThemes": 1,
+  "reviewReferenceCount": 1,
+  "proposedChanges": 0,
+  "structuredOutputsValidated": true,
+  "chainTransactions": 0
+}

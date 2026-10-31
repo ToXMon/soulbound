@@ -1,0 +1,135 @@
+   Compiling wincode v0.6.3
+   Compiling solana-hash v4.6.0
+   Compiling solana-signature v3.5.2
+   Compiling solana-fee-calculator v3.3.0
+   Compiling solana-short-vec v3.3.0
+   Compiling solana-wincode-varint v1.1.0
+   Compiling solana-sha256-hasher v3.1.0
+   Compiling solana-keccak-hasher v3.1.0
+   Compiling solana-blake3-hasher v3.1.0
+   Compiling solana-hash v3.1.0
+   Compiling solana-address v2.7.0
+   Compiling spl-discriminator v0.5.2
+   Compiling solana-pubkey v4.3.0
+   Compiling solana-sdk-ids v3.1.0
+   Compiling solana-get-sysvar v1.0.0
+   Compiling solana-account-info v3.1.1
+   Compiling solana-address v1.1.0
+   Compiling solana-pubkey v3.0.0
+   Compiling solana-instruction v4.0.0
+   Compiling solana-signer v3.0.1
+   Compiling solana-serialize-utils v3.1.2
+   Compiling solana-sysvar-id v3.1.0
+   Compiling solana-svm-timings v4.3.2
+   Compiling solana-nonce v3.3.0
+   Compiling solana-packet v4.3.0
+   Compiling solana-clock v4.0.0
+   Compiling solana-epoch-schedule v3.3.0
+   Compiling solana-slot-hashes v3.2.0
+   Compiling solana-instruction v3.5.1
+   Compiling solana-program-entrypoint v3.1.1
+   Compiling solana-last-restart-slot v3.2.0
+   Compiling solana-slot-history v3.2.0
+   Compiling solana-clock v3.2.1
+   Compiling solana-epoch-rewards v3.2.0
+   Compiling solana-system-interface v3.3.0
+   Compiling solana-rent v4.4.0
+   Compiling solana-stake-history v1.1.0
+   Compiling solana-stable-layout v3.0.1
+   Compiling solana-message v4.6.0
+   Compiling solana-instructions-sysvar v4.0.0
+   Compiling solana-loader-v3-interface v7.0.0
+   Compiling solana-cpi v3.1.0
+   Compiling solana-instructions-sysvar v3.0.1
+   Compiling solana-sysvar v4.2.0
+   Compiling solana-keypair v3.1.2
+   Compiling solana-rent v3.1.0
+   Compiling solana-zk-sdk v4.0.0
+   Compiling solana-system-interface v2.0.0
+   Compiling solana-transaction v4.3.0
+   Compiling agave-feature-set v4.3.2
+   Compiling solana-sysvar v3.1.1
+   Compiling solana-account v4.7.0
+   Compiling solana-zk-elgamal-proof-interface v0.1.3
+   Compiling spl-type-length-value v0.9.1
+   Compiling solana-address-lookup-table-interface v3.2.0
+   Compiling solana-svm-transaction v5.0.0
+   Compiling solana-svm-callback v4.3.2
+   Compiling solana-transaction-context v4.3.2
+   Compiling solana-message v3.1.0
+   Compiling spl-token-group-interface v0.7.2
+   Compiling solana-zk-sdk v7.0.1
+   Compiling solana-nonce-account v4.3.0
+   Compiling solana-builtins-default-costs v4.3.2
+   Compiling solana-invoke v0.5.1
+   Compiling solana-program-runtime v4.3.2
+   Compiling solana-stake-interface v2.0.2
+   Compiling solana-example-mocks v3.0.0
+   Compiling solana-vote-interface v6.1.0
+   Compiling solana-loader-v3-interface v6.1.1
+   Compiling solana-compute-budget-interface v3.1.0
+   Compiling anchor-lang-error v1.2.1
+   Compiling solana-feature-gate-interface v3.1.0
+   Compiling solana-epoch-stake v3.0.1
+   Compiling spl-pod v0.7.4
+   Compiling solana-syscalls v4.3.2
+   Compiling solana-compute-budget v4.3.2
+   Compiling spl-token-confidential-transfer-proof-generation v0.5.1
+   Compiling anchor-lang v1.2.1
+   Compiling spl-token-metadata-interface v0.8.0
+   Compiling spl-token-confidential-transfer-proof-extraction v0.5.1
+   Compiling solana-compute-budget-instruction v4.3.2
+   Compiling solana-vote-program v4.3.2
+   Compiling solana-bpf-loader-program v4.3.2
+   Compiling solana-program v3.0.0
+   Compiling spl-token-2022-interface v2.1.0
+   Compiling solana-compute-budget-program v4.3.2
+   Compiling solana-system-program v4.3.2
+   Compiling solana-zk-token-proof-program v4.3.2
+   Compiling solana-zk-elgamal-proof-program v4.3.2
+   Compiling agave-transaction-view v6.1.0
+   Compiling spl-associated-token-account-interface v2.0.0
+   Compiling spl-token-interface v2.0.0
+   Compiling mpl-core v0.12.1
+   Compiling solana-runtime-transaction v4.3.2
+   Compiling solana-builtins v4.3.2
+   Compiling solana-fee v4.3.2
+   Compiling spl-token-metadata-interface v1.0.1
+   Compiling spl-token-confidential-transfer-proof-extraction v0.6.1
+   Compiling solana-feature-gate-interface v4.0.0
+   Compiling anchor-spl v1.2.1
+   Compiling agave-reserved-account-keys v4.3.2
+   Compiling solana-loader-v3-interface v8.1.1
+   Compiling solana-loader-v4-interface v3.1.0
+   Compiling spl-token-2022-interface v3.1.2
+   Compiling litesvm v0.18.1
+   Compiling soulbound v0.1.0 (/w/programs/soulbound)
+   Compiling tests v0.1.0 (/w/tests)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 27s
+     Running unittests src/lib.rs (target/debug/deps/tests-0e4be13664935b4a)
+
+running 10 tests
+test test_commit_memory_root::req10_13_epoch_zero_append_immutable_event_rent_and_capacity ... history size=6189 rent=32090360 CU=12935
+ok
+test test_commit_memory_root::req11_12_rejections_are_atomic_and_initialization_authenticated ... ok
+test test_evolve_traits::req04_20_21_22_runtime_replacement_provenance_and_direct_owner_rejection ... direct non-PDA Core rejection: InstructionError(0, Custom(26))
+direct non-PDA Core rejection: InstructionError(0, Custom(26))
+CORE_FIXTURE config=ArKCrK8q63iACBu3hYcengJ2r7TgxaT9PMeejHcmdJyQ data=AVGFPdk7T6QW+P/l1sO/8j++2vJhsU/tzzPsim2nDIAxAZJbOcU1xYB4SIz/QR+KvD17KQoGBqAJdkXPD4j/JzFrEwAAAFNPVUxCT1VORCBDaGFyYWN0ZXIAAAAAAAPbAAAAAAAAAAYFAAAACgAAAGxpZmVfc3RhZ2UEAAAAYm9ybgQAAABtb29kCgAAAHJlZmxlY3RpdmUMAAAAbWVtb3J5X2Vwb2NoAQAAADAMAAAAdHJhaXRfdmVjdG9yBAAAAGNhbG0GAAAAY3VzdG9tCAAAAHJldGFpbmVkBAEAAAAGAmcAAAAAAAAAAAAAAA==
+dream size=89 rent=1102360 CU=50004
+ok
+test test_initialize_character::req01_pda_derives_canonically ... ok
+test test_initialize_character::req02_and_req03_core_asset_with_attributes ... ok
+test test_initialize_character::req05_receipt_is_non_transferable ... ok
+test test_initialize_character::req06_duplicate_character_id_rejected ... ok
+test test_initialize_character::req07_genesis_state_and_failed_ix_leaves_no_state ... ok
+test test_rotate_runtime_signer::amendment_dual_signature_rotation_preserves_every_other_byte_and_req11 ... ok
+test test_rotate_runtime_signer::amendment_recovers_genesis_without_history_or_old_runtime_signature ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.10s
+
+   Doc-tests tests
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

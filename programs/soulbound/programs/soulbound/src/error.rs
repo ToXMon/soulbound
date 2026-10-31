@@ -20,4 +20,14 @@ pub enum SoulboundError {
     UnauthorizedOwner,
     #[msg("Replacement runtime signer must differ from the current signer")]
     UnchangedRuntimeSigner,
+    #[msg("Only the configured runtime signer may evolve traits")]
+    UnauthorizedTraitRuntime,
+    #[msg("Journal hash must be nonzero and different from the previous journal")]
+    InvalidJournalHash,
+    #[msg("Trait list is invalid, incomplete, duplicated, or exceeds bounds")]
+    InvalidAttributes,
+    #[msg("Dream provenance is bound to another config or bump")]
+    InvalidDreamState,
+    #[msg("Dream revision changed; fetch current attributes before proposing again")]
+    StaleDreamRevision,
 }

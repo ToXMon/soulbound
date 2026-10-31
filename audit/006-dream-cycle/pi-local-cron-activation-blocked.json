@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-31T03:24:03.110Z",
+  "appSourceChanged": false,
+  "appHealthStatus": 200,
+  "tokenEndpointHealthStatus": 200,
+  "agentAndLiveKitRestarted": false,
+  "workerMemoryEnabled": true,
+  "workerStoreAndOwnerMatchDream": true,
+  "privateWrapperPrepared": true,
+  "privateWrapperChecksPassed": true,
+  "dailySchedule": "0 3 * * *",
+  "timezone": "America/New_York",
+  "cronInstalled": false,
+  "cronInstallError": "crontab: tmp/tmp.78346: Operation not permitted",
+  "actualCronFireObserved": false,
+  "manualMacOSPermissionStepRequired": true,
+  "personalMemoryContentExported": false,
+  "traitTransactionsSignedOrSent": 0
+}

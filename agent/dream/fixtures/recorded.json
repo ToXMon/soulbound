@@ -1,0 +1,38 @@
+{
+  "fixture": true,
+  "description": "Synthetic recorded test responses, NOT live model output or personal memories. Public genesis addresses identify the shape only; never send this proposal.",
+  "snapshot": {
+    "owner": "CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1",
+    "characterId": "895354",
+    "config": "74dRYy2RARkhQs963QcGZdVXhfjABm2BGC7WFwSd7Ehc",
+    "asset": "8ra3ckcmgWRhFyWBiCz6KPLM76hugAYhjeEzZCxc8fHU",
+    "runtime": "2CU934FR5LwgnngkBYTH2yzYvJ7UeXvSNYUnaoZBd6HM",
+    "payer": "CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1",
+    "revision": "0",
+    "journalHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "memoryEpoch": "0",
+    "lifeStage": "born",
+    "attributes": [
+      {"key": "life_stage", "value": "born"},
+      {"key": "mood", "value": "curious"},
+      {"key": "memory_epoch", "value": "0"},
+      {"key": "trait_vector", "value": "genesis:calm,curious,bold"}
+    ]
+  },
+  "memories": [{
+    "id": "fixture-memory-1",
+    "content_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "summary": "FIXTURE: we tested a small shared project together.",
+    "timestamp": "2026-10-30T00:00:00.000Z"
+  }],
+  "consolidation": {
+    "schema_version": 1,
+    "themes": [{"summary": "FIXTURE: shared experimentation.", "memory_ids": ["fixture-memory-1"]}]
+  },
+  "review": {
+    "schema_version": 1,
+    "journal": "FIXTURE: I reflected on our shared experiment and feel quietly encouraged.",
+    "memory_ids": ["fixture-memory-1"],
+    "changes": [{"key": "mood", "value": "encouraged", "memory_ids": ["fixture-memory-1"]}]
+  }
+}

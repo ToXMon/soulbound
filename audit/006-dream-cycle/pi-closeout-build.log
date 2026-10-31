@@ -1,0 +1,3 @@
+
+> agent@ build /Users/tolushekoni/Desktop/soulbound/agent
+> tsc -p tsconfig.json

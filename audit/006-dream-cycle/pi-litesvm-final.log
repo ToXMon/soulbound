@@ -1,0 +1,33 @@
+info: syncing channel updates for 1.99.1-x86_64-unknown-linux-gnu
+info: latest update on 2026-10-15 for version 1.99.1 (58cf8f9c3 2026-10-13)
+info: downloading 2 components
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.41s
+     Running unittests src/lib.rs (target/debug/deps/tests-0e4be13664935b4a)
+
+running 10 tests
+test test_commit_memory_root::req10_13_epoch_zero_append_immutable_event_rent_and_capacity ... history size=6189 rent=32090360 CU=12935
+ok
+test test_commit_memory_root::req11_12_rejections_are_atomic_and_initialization_authenticated ... ok
+test test_evolve_traits::req04_20_21_22_runtime_replacement_provenance_and_direct_owner_rejection ... direct non-PDA Core rejection: InstructionError(0, Custom(26))
+direct non-PDA Core rejection: InstructionError(0, Custom(26))
+CORE_FIXTURE config=BzkSrgH5cdopUKVzGxz88yTm92G8ULLgDkWJTyL3o7NY data=ASpnFEjkvZPyUf7IKLHr7o+IzPZUe11fyAjmuvi5NPZCAaNgGYZMfCD/XoDEpgTwnRSUERf2ZZfHXegl7rCeG8npEwAAAFNPVUxCT1VORCBDaGFyYWN0ZXIAAAAAAAPbAAAAAAAAAAYFAAAACgAAAGxpZmVfc3RhZ2UEAAAAYm9ybgQAAABtb29kCgAAAHJlZmxlY3RpdmUMAAAAbWVtb3J5X2Vwb2NoAQAAADAMAAAAdHJhaXRfdmVjdG9yBAAAAGNhbG0GAAAAY3VzdG9tCAAAAHJldGFpbmVkBAEAAAAGAmcAAAAAAAAAAAAAAA==
+dream size=89 rent=1102360 CU=46296
+ok
+test test_initialize_character::req01_pda_derives_canonically ... ok
+test test_initialize_character::req02_and_req03_core_asset_with_attributes ... ok
+test test_initialize_character::req05_receipt_is_non_transferable ... ok
+test test_initialize_character::req06_duplicate_character_id_rejected ... ok
+test test_initialize_character::req07_genesis_state_and_failed_ix_leaves_no_state ... ok
+test test_rotate_runtime_signer::amendment_dual_signature_rotation_preserves_every_other_byte_and_req11 ... ok
+test test_rotate_runtime_signer::amendment_recovers_genesis_without_history_or_old_runtime_signature ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.16s
+
+   Doc-tests tests
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+pinned LiteSVM exit=0

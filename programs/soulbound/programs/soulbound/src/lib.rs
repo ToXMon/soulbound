@@ -13,6 +13,16 @@ declare_id!("BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd");
 pub mod soulbound {
     use super::*;
 
+    /// REQ-04, 20..22: runtime-gated full Attributes replacement and provenance.
+    pub fn evolve_traits(
+        ctx: Context<EvolveTraits>,
+        expected_revision: u64,
+        journal_hash: [u8; 32],
+        new_attributes: Vec<TraitAttribute>,
+    ) -> Result<()> {
+        instructions::evolve_traits::evolve_traits_handle(ctx, expected_revision, journal_hash, new_attributes)
+    }
+
     /// Ticket 005 amendment: owner-authorized recovery with replacement proof of possession.
     pub fn rotate_runtime_signer(ctx: Context<RotateRuntimeSigner>) -> Result<()> {
         instructions::rotate_runtime_signer::rotate_runtime_signer_handle(ctx)

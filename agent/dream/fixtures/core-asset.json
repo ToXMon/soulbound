@@ -1,0 +1,28 @@
+{
+  "fixture": true,
+  "source": "Actual ticket-006 final Docker LiteSVM output using the real mpl_core.so fixture; ephemeral test identities, not a devnet transaction.",
+  "config": "4xmrfZ2e2CjcZT6BSReXwEqDJogTS73xS3HpcCuW6C2m",
+  "data": "AUgAkAOi5Zezrb8P9hbFrkmX1v0M1sAbiTahZpWWWYHgATrcuXUyEZez8gpJiEWyl/rqCgwIsbke6AG4Uab5mfZKEwAAAFNPVUxCT1VORCBDaGFyYWN0ZXIAAAAAAAPbAAAAAAAAAAYFAAAACgAAAGxpZmVfc3RhZ2UEAAAAYm9ybgQAAABtb29kCgAAAHJlZmxlY3RpdmUMAAAAbWVtb3J5X2Vwb2NoAQAAADAMAAAAdHJhaXRfdmVjdG9yBAAAAGNhbG0GAAAAY3VzdG9tCAAAAHJldGFpbmVkBAEAAAAGAmcAAAAAAAAAAAAAAA==",
+  "attributes": [
+    {
+      "key": "life_stage",
+      "value": "born"
+    },
+    {
+      "key": "mood",
+      "value": "reflective"
+    },
+    {
+      "key": "memory_epoch",
+      "value": "0"
+    },
+    {
+      "key": "trait_vector",
+      "value": "calm"
+    },
+    {
+      "key": "custom",
+      "value": "retained"
+    }
+  ]
+}

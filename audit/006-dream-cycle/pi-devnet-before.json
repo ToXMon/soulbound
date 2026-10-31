@@ -1,0 +1,34 @@
+{
+  "observedAt": "2026-10-31T00:44:52.053Z",
+  "state": "read-only-before-no-broadcast",
+  "snapshot": {
+    "owner": "CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1",
+    "characterId": "895354",
+    "config": "74dRYy2RARkhQs963QcGZdVXhfjABm2BGC7WFwSd7Ehc",
+    "asset": "8ra3ckcmgWRhFyWBiCz6KPLM76hugAYhjeEzZCxc8fHU",
+    "runtime": "2CU934FR5LwgnngkBYTH2yzYvJ7UeXvSNYUnaoZBd6HM",
+    "payer": "CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1",
+    "revision": "0",
+    "journalHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "attributes": [
+      {
+        "key": "life_stage",
+        "value": "born"
+      },
+      {
+        "key": "mood",
+        "value": "curious"
+      },
+      {
+        "key": "memory_epoch",
+        "value": "0"
+      },
+      {
+        "key": "trait_vector",
+        "value": "genesis:calm,curious,bold"
+      }
+    ],
+    "memoryEpoch": "0",
+    "lifeStage": "born"
+  }
+}

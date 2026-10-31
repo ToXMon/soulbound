@@ -1,0 +1,16 @@
+✔ versioned responses reject invented references, reserved keys, duplicates and malformed values (9.695541ms)
+✔ recorded model responses use structured output and the fixed Meta model ID (1.247333ms)
+{"state":"fixture-journal-written","fixture":true,"journalHash":"05a1bcbd3a1f892d81aeb443889c4cf924394797d60bde02c5b6ce80729cc07e","memoryReferences":1,"proposalHash":"8a6f4fc9204af22331d6861a36de7cabc1f5f95f1c64095f518e732bb93f8e5a"}
+✔ run-once writes immutable, hash-linkable fixture journal; fixture can never send (27.187833ms)
+✔ trait encoding matches generated IDL discriminator and Borsh full list (1.98875ms)
+✔ Core decoder agrees with actual LiteSVM mpl_core.so output and rejects bad authority/bounds (1.236125ms)
+✔ dry-run, exact approval, ambiguous send, durable signature, expiry: never blind re-sign (104.232958ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 455.585042
+dream tests exit=0

@@ -1,0 +1,394 @@
+# Ticket 006 — local scheduler activation attempt
+Begins at Tolu's choice of the local recommendation. Reasoning omitted; credential-shaped strings redacted. Cron installation failed; no scheduled fire is claimed.
+
+
+## 2026-10-31T03:17:50.397Z user
+ok lets go with recommendation then
+
+## 2026-10-31T03:17:55.244Z assistant
+TOOL read {"path": ".agents/skills/doer/SKILL.md", "offset": null, "limit": null}
+
+## 2026-10-31T03:17:55.251Z toolResult read
+---
+name: doer
+description: SOULBOUND doer protocol — you are Muse Code, the implementer. Execute one ticket at a time, minimally, inside scope, and leave audit evidence. Load whenever you are Muse Code working in this repo.
+---
+
+# Doer protocol (Muse Code)
+
+You are the **doer**: the implementer in the AdaL-thinks / Muse-does harness. AdaL writes tickets; you execute them; AdaL verifies. You never write specs, edit REQs, or review your own work.
+
+## On session start
+
+1. Read `AGENTS.md` (constitution) and `SOULBOUND.md` (project state, decision log §9).
+2. Read the ticket you were given (`tickets/NNN-*.md`). If you were not given one, stop and ask which ticket to execute.
+3. Read only the REQ rows your ticket lists in `docs/architecture.md`.
+
+## Rules
+
+1. **Scope is the ticket's "Files in scope."** Touch nothing outside it. Non-goals are binding.
+2. **Authority order:** REQ tables > ticket > your judgment. If they conflict, STOP and report the conflict — do not resolve it yourself.
+3. **Ponytail ladder:** does this need to exist → already in this codebase → stdlib → platform feature → installed dependency → minimal new code. Write the least code that satisfies every acceptance criterion. Never cut validation, error handling, security, or accessibility. Match existing style.
+4. **Model purity:** product inference is Meta models only (see AGENTS.md §Non-negotiables).
+5. **No secrets.** Read `.env.example`; never invent or commit credentials.
+6. If blocked (missing credential, missing service), report exactly what is missing and stop — do not stub silently. A labeled placeholder with a TODO is acceptable only if the ticket allows it.
+7. Tests you write are self-checks, not independent verification — AdaL runs the ticket's verification commands herself. Still write them: risky logic ships with a test.
+8. Do not edit `tickets/`, `audit/`, `SOULBOUND.md` §9, or the REQ tables in `docs/architecture.md`. Ever.
+
+## Before finishing
+
+1. Run the ticket's **Verification** commands yourself once. If they fail, fix and rerun; if a failure contradicts the ticket, stop and report instead of improvising.
+2. **Export your session log** into the ticket's evidence folder: `muse export` (or the session transcript) → `audit/NNN-slug/muse-session.log`. No secrets in the export.
+3. End with a short report: what changed (files), which acceptance criteria you believe pass, what you did NOT verify, any deviations from the ticket and why.
+
+## Never do
+
+- `--yolo` / `--disable-approval` / `--disable-sandbox` on `programs/soulbound/`, `paywall/`, or anything touching keys, wallets, or signing.
+- Broaden scope "while you're in there."
+- Fabricate a deploy, tx hash, address, or test output.
+
+
+## 2026-10-31T03:18:13.708Z assistant
+I’ll set up local daily cron and verify one scheduled journal run. I’ll also try restarting the browser dev server without changing app code; if that doesn’t fix the 500, I’ll stop that part for a separate ticket. Cron will only generate private journals—never send trait transactions.
+
+
+TOOL codemode {"code": "text(await tools.read({path:\"docs/dreams.md\",offset:75,limit:110}));\ntext(await tools.read({path:\"app/package.json\"}));\ntext(await tools.bash({command:\"command -v node; command -v crontab; date '+host timezone=%Z offset=%z'; lsof -nP -iTCP:3000 -sTCP:LISTEN; git status --short -- app agent/src; rg -n 'REQ-20|REQ-21|REQ-22|REQ-04' docs/architecture.md\",\"timeout\":30}));\n"}
+
+## 2026-10-31T03:18:13.925Z toolResult codemode
+Script completed
+Wall time 0.2 seconds
+Output:
+
+==> text 1/3 <==
+
+```sh
+cd agent
+./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext \
+  --moduleResolution NodeNext --allowImportingTsExtensions --allowJs \
+  --skipLibCheck dream/*.ts
+```
+
+## Live inference, off-chain only
+
+Private configuration stays outside the repo; never print it or source it with
+shell tracing enabled. The ticket's file scope excludes `.env.example`, so these
+settings are documented here instead:
+
+| Variable | Purpose |
+| --- | --- |
+| `MODEL_API_KEY` | Meta Model API credential for non-contributor Spark 1.3 + Wonder |
+| `META_API_KEY` | existing Meta credential fallback when `MODEL_API_KEY` is unset |
+| `MEMORY_OWNER_ID` | explicit owner public key |
+| `MEMORY_CHARACTER_ID` | canonical decimal character ID (`895354` for genesis) |
+| `MEMORY_STORE_PATH` | existing private 004 store root |
+| `MEMORY_COMMIT_RPC_URL` | HTTPS devnet RPC; never logged |
+| `MEMORY_COMMIT_RUNTIME_PUBLIC_KEY` | expected current runtime public key |
+| `MEMORY_COMMIT_FEE_PAYER` | funded system-wallet public key |
+| `MEMORY_COMMIT_RUNTIME_KEY_FILE` | existing Mac-local private key reference; send only |
+| `MEMORY_COMMIT_FEE_PAYER_KEY_FILE` | existing payer key reference; send only |
+
+```sh
+node agent/dream/run-once.ts --character genesis --live-models \
+  --out /ABSOLUTE/PRIVATE/PATH/dreams/2026-10-31.json
+```
+
+Real journal parents must be 0700; journals and key files must be regular 0600
+files. Permissions are checked, not silently relaxed. 004 persists by atomic
+rename, so dream takes a coherent **read-only** `store.json` snapshot, validates
+records/content hashes/manifests with 004's own validators, and never acquires its
+lifetime writer lock. The voice worker can remain running. Memories persisted
+after this read belong to the next snapshot. Dream never creates, writes,
+consolidates or deletes the source store. Consolidation is a derived view in the
+journal. Full history (including supersession references) is supplied up to 200
+memories/150KB, with a 2MB source-file bound; larger/empty graphs fail explicitly,
+not truncate.
+
+Tolu-approved substitution (2026-10-31): both calls use Meta
+`https://api.meta.ai/v1`: **`muse-spark-1.3`** consolidates and **`muse-wonder-1.0`**
+reviews. Baseten and its credential are no longer required. The existing Meta
+credential may be reused through `META_API_KEY`; an explicit `MODEL_API_KEY`
+takes precedence. Spark 1.3\'s voice path is untouched. The live account catalog
+omitted Spark Open and its direct probe returned 404 `model_not_found`; evidence:
+`audit/006-dream-cycle/pi-spark-open-meta-access-probe.json`. Structured JSON v1 is locally validated, with cited IDs checked
+against the supplied graph. SDK automatic retries are off; transient server/rate
+failures have three bounded attempts with exponential jitter, no client-error
+retry. Provider bodies/keys are never logged. Direct Meta structured calls were verified
+with explicitly synthetic input, then with a real private journal after Tolu's
+approval. Fixture replay alone is still not evidence of provider availability.
+
+## Journal format and hash
+
+UTF-8 JSON, two-space indentation and final newline. Schema v1 contains:
+- `fixture`, `created_at` (UTC ISO timestamp), pinned `program` and `genesis`;
+- `snapshot`: exact owner/character/config/asset/runtime/payer, prior revision and
+  journal hash, full fetched attributes, config lifecycle/epoch;
+- `memories`: record IDs, committed content hashes, timestamps, summaries and
+  optional supersession references from the validated 004 graph;
+- fixed model IDs, structured `consolidation` themes with memory IDs;
+- Wonder `review`: journal prose, memory IDs, cited bounded changes;
+- `new_attributes`: full fetch-modify-write list, mechanically checked against review.
+
+**SHA-256 of the exact file bytes** is the 32-byte on-chain `journal_hash`.
+This is not 004's Keccak Merkle algorithm. The document does not contain its own
+hash. `readJournal` recomputes it; editing whitespace changes the approval and
+on-chain commitment. Preserve original private bytes for provenance; do not put
+personal memories or journal prose in public audit evidence. Export only hashes,
+counts, model IDs and public transaction/account data.
+
+## Deterministic scheduler
+
+`agent/dream/dream.cron` is an **uninstalled example**, not a claim that cron ran.
+Install through the operator's crontab after replacing its wrapper path. Example
+private wrapper (0700), with absolute Node/repo/config paths:
+
+```sh
+#!/bin/sh
+set -eu
+umask 077
+. /ABSOLUTE/PRIVATE/PATH/dream.env
+cd /ABSOLUTE/PATH/soulbound
+exec /ABSOLUTE/PATH/node agent/dream/run-once.ts --character genesis --live-models \
+  --out "/ABSOLUTE/PRIVATE/PATH/dreams/$(date -u +%F).json"
+```
+
+`dream.env` must export settings, be 0600, and never be committed. Create the
+private output directory first. Cron invokes once daily at 03:00 host time; date
+names are UTC. Same-day duplicate invocation refuses existing output. Inference
+and journaling alone are scheduled, **not chain submission**. An O_EXCL output
+lock serializes the whole invocation. After a crash, verify holder PID and journal
+integrity before manually removing a stale lock. Never auto-remove submission
+locks. To demonstrate the criterion, record the actual cron fire and resulting
+UTC journal timestamp/count/hash; a manual fixture run is not that evidence.
+
+## Trait committer: simulate → exact approval → send → reconcile
+
+No generation step broadcasts. Submitting an existing real journal is a separate
+operation. Default submission mode simulates unsigned, without opening key files:
+
+```sh
+node agent/dream/run-once.ts --journal /PRIVATE/dreams/DATE.json \
+  --ledger /PRIVATE/submissions/DATE.json
+```
+
+
+[180 more lines in file. Use offset=185 to continue.]
+==> text 2/3 <==
+{
+  "name": "app",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "start": "next start"
+  },
+  "dependencies": {
+    "livekit-client": "^2.15.0",
+    "livekit-server-sdk": "^2.13.0",
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.9.0"
+  }
+}
+==> text 3/3 <==
+{"output":"/opt/homebrew/bin/node\n/usr/bin/crontab\nhost timezone=EDT offset=-0400\nCOMMAND   PID        USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    94873 tolushekoni   13u  IPv4 0xc2f7fa6947ff771c      0t0  TCP 127.0.0.1:3000 (LISTEN)\n179:| REQ-04 | Attach the Oracle plugin gating `evolve_traits` to the runtime signer | Non-oracle mutation rejected |\n195:| REQ-20 | Apply a validated trait delta to the Attributes plugin | Explorer shows new traits |\n196:| REQ-21 | Reject any direct owner or third-party mutation | Both fail |\n197:| REQ-22 | Record the dream-cycle journal hash that motivated the mutation | Hash stored, linkable to off-chain journal |\n252:| Dream Scheduler → `evolve_traits` → Core asset | dream cycle (async) | REQ-20..22, D10 |\n257:| Muse Image → Core asset | portrait evolution (async) | D13, REQ-22 |\n","truncated":false,"exit_code":0,"wall_time_seconds":0.1}
+
+## 2026-10-31T03:18:36.713Z assistant
+TOOL bash {"command": "node --input-type=module <<'JS'\nimport {spawnSync} from 'node:child_process';\nconst r=spawnSync('/usr/bin/crontab',['-l'],{encoding:'utf8',timeout:10000});\nconsole.log(JSON.stringify({cronReadable:r.status===0,noExistingCrontab:r.status!==0&&/no crontab/i.test(r.stderr||''),timedOut:r.error?.code==='ETIMEDOUT',existingNonemptyLines:r.status===0?r.stdout.split('\\n').filter(l=>l.trim()).length:null,existingSoulbound006:r.status===0&&r.stdout.includes('SOULBOUND-006'),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone},null,2));\nJS", "timeout": 15}
+
+## 2026-10-31T03:18:36.909Z toolResult bash
+{
+  "cronReadable": false,
+  "noExistingCrontab": true,
+  "timedOut": false,
+  "existingNonemptyLines": null,
+  "existingSoulbound006": false,
+  "timezone": "America/New_York"
+}
+
+
+## 2026-10-31T03:19:05.558Z assistant
+TOOL bash {"command": "node --input-type=module <<'JS'\nimport {spawnSync} from 'node:child_process';\nconst parent=spawnSync('/bin/ps',['-p','94873','-o','ppid='],{encoding:'utf8'});\nconst ppid=Number(parent.stdout.trim());\nconst parentName=spawnSync('/bin/ps',['-p',String(ppid),'-o','comm='],{encoding:'utf8'}).stdout.trim();\nconst worker=spawnSync('/bin/ps',['eww','-p','90591','-o','command='],{encoding:'utf8',maxBuffer:2000000});\nconst get=(key)=>new RegExp('(?:^|\\\\s)'+key+'=([^\\\\s]*)').exec(worker.stdout||'')?.[1];\nconsole.log(JSON.stringify({appServerPid:94873,appParentPid:ppid,appParentExecutable:parentName,workerEnvironmentRead:worker.status===0,workerMemoryEnabled:['true','1'].includes((get('MEMORY_ENABLED')||'').toLowerCase()),workerMemoryCharacterIsGenesis:get('MEMORY_CHARACTER_ID')==='895354',workerHasMemoryStorePath:!!get('MEMORY_STORE_PATH'),workerHasMetaCredential:!!(get('MODEL_API_KEY')||get('META_API_KEY')),environmentValuesExported:false},null,2));\nJS", "timeout": 30}
+
+## 2026-10-31T03:19:05.650Z toolResult bash
+{
+  "appServerPid": 94873,
+  "appParentPid": 78090,
+  "appParentExecutable": "node",
+  "workerEnvironmentRead": true,
+  "workerMemoryEnabled": true,
+  "workerMemoryCharacterIsGenesis": true,
+  "workerHasMemoryStorePath": true,
+  "workerHasMetaCredential": true,
+  "environmentValuesExported": false
+}
+
+
+## 2026-10-31T03:19:15.142Z assistant
+TOOL read {"path": "app/app/api/token/route.ts", "offset": null, "limit": null}
+
+## 2026-10-31T03:19:15.149Z toolResult read
+import { AccessToken } from "livekit-server-sdk";
+import { NextRequest, NextResponse } from "next/server";
+
+// Starter-pattern token endpoint: the server signs, the browser never sees the secret.
+export async function GET(req: NextRequest) {
+  const room = req.nextUrl.searchParams.get("room") ?? "soulbound";
+  const name = req.nextUrl.searchParams.get("name") ?? `guest-${Math.random().toString(36).slice(2, 8)}`;
+  const apiKey = process.env.LIVEKIT_API_KEY;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+  if (!apiKey || !apiSecret) {
+    return NextResponse.json({ error: "LIVEKIT_API_KEY / LIVEKIT_API_SECRET not set (see .env.example)" }, { status: 500 });
+  }
+  const at = new AccessToken(apiKey, apiSecret, { identity: name });
+  at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
+  return NextResponse.json({ token: await at.toJwt() });
+}
+
+
+## 2026-10-31T03:19:37.523Z assistant
+TOOL bash {"command": "node --input-type=module <<'JS'\nimport {spawnSync,spawn} from 'node:child_process';\nimport {openSync,mkdirSync} from 'node:fs';\nconst env={...process.env};\nconst result=spawnSync('/bin/ps',['eww','-p','78090','-o','command='],{encoding:'utf8',maxBuffer:2000000});\nif(result.status!==0)throw new Error('Original app parent unavailable; no process changes made');\nfor(const key of ['LIVEKIT_API_KEY','LIVEKIT_API_SECRET','LIVEKIT_URL','NEXT_PUBLIC_LIVEKIT_URL']) {\n const value=new RegExp('(?:^|\\\\s)'+key+'=([^\\\\s]*)').exec(result.stdout)?.[1];if(value)env[key]=value;\n}\nconst directory=`${process.env.HOME}/.config/soulbound/ticket-006`;\nmkdirSync(directory,{recursive:true,mode:0o700});\nconst fd=openSync(`${directory}/app-restart.log`,'a',0o600);\nprocess.kill(78090,'SIGTERM');\ntry{process.kill(94873,'SIGTERM');}catch(e){if(e.code!=='ESRCH')throw e;}\nawait new Promise(r=>setTimeout(r,2500));\nconst child=spawn(process.execPath,['node_modules/next/dist/bin/next','dev','--hostname','127.0.0.1','--port','3000'],{cwd:`${process.cwd()}/app`,env,detached:true,stdio:['ignore',fd,fd]});\nchild.unref();\nconsole.log(JSON.stringify({appRestartRequested:true,newParentPid:child.pid,appSourceChanged:false,workerRestarted:false,credentialsExported:false}));\nJS", "timeout": 15}
+
+## 2026-10-31T03:19:40.179Z toolResult bash
+{"appRestartRequested":true,"newParentPid":77601,"appSourceChanged":false,"workerRestarted":false,"credentialsExported":false}
+
+
+## 2026-10-31T03:20:30.849Z assistant
+TOOL bash {"command": "node --input-type=module <<'JS'\nimport {spawnSync} from 'node:child_process';\nimport {mkdir,lstat,writeFile} from 'node:fs/promises';\nimport {createHash} from 'node:crypto';\nconst root=`${process.env.HOME}/.config/soulbound/ticket-006`, repo=process.cwd();\nconst cron=(args,input)=>spawnSync('/usr/bin/crontab',args,{input,encoding:'utf8',timeout:10000});\nconst read=()=>{const r=cron(['-l']);if(r.status===0)return r.stdout;if(/no crontab/i.test(r.stderr||''))return '';throw new Error('Cannot safely read operator crontab');};\nconst previous=read();if(previous.includes('SOULBOUND-006'))throw new Error('Existing ticket-006 schedule requires reconciliation, not duplicate installation');\nfor(const dir of [root,`${root}/cron`,`${root}/cron/claims`,`${root}/dreams`]) {await mkdir(dir,{recursive:true,mode:0o700});const s=await lstat(dir);if(!s.isDirectory()||(s.mode&0o077))throw new Error('Operator directories must be private');}\nconst quote=s=>\"'\"+s.replaceAll(\"'\",\"'\\\\''\")+\"'\";\nconst wrapper=`${root}/cron/dream-nightly.sh`;\nconst script=`#!/bin/sh\n# Ticket 006: off-chain inference/journals only; no submission flags.\nset -eu\numask 077\nPATH=/usr/bin:/bin\nexport PATH\ncase \"\\${1:-daily}\" in\n  daily) slot=$(date -u +%F) ;;\n  probe) slot=cron-probe ;;\n  *) exit 64 ;;\nesac\n# One attempt per slot, including failures: operator review before any retry.\nmkdir ${quote(`${root}/cron/claims/`)}\"$slot\"\ncd ${quote(repo)}\nexec ${quote(process.execPath)} --env-file=${quote(`${repo}/agent/.env`)} --env-file=${quote(`${repo}/app/.env.local`)} --env-file=${quote(`${process.env.HOME}/.config/soulbound/ticket-005/operator.env`)} --env-file=${quote(`${process.env.HOME}/.config/soulbound/ticket-005/quicknode-v2.env`)} agent/dream/run-once.ts --character genesis --live-models --out ${quote(`${root}/dreams/`)}\"$slot.json\"\n`;\nawait writeFile(wrapper,script,{flag:'wx',mode:0o700});\nconst check=spawnSync('/bin/sh',['-n',wrapper]);if(check.status!==0)throw new Error('Wrapper shell syntax check failed');\nconst daily=`0 3 * * * ${quote(wrapper)} daily >> ${quote(`${root}/cron/daily.log`)} 2>&1 # SOULBOUND-006-DAILY`;\nconst probe=`* * * * * ${quote(wrapper)} probe >> ${quote(`${root}/cron/probe.log`)} 2>&1 # SOULBOUND-006-PROBE`;\nif(read()!==previous)throw new Error('Crontab changed concurrently; installation refused');\nconst next=previous+(previous&&!previous.endsWith('\\n')?'\\n':'')+daily+'\\n'+probe+'\\n';\nconst install=cron(['-'],next);const observed=read();\nconst result={observedAt:new Date().toISOString(),installed:observed===next,installExit:install.status,installTimedOut:install.error?.code==='ETIMEDOUT',dailySchedule:'0 3 * * *',timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,temporaryProbeSchedule:'* * * * *',existingEntriesPreserved:observed.startsWith(previous),wrapperSHA256:createHash('sha256').update(script).digest('hex'),shellSyntaxCheckPassed:true,perSlotAttemptClaim:true,automaticTraitSubmission:false,secretsCopied:false};\nawait writeFile(`${root}/cron/install-receipt.json`,JSON.stringify(result,null,2)+'\\n',{flag:'wx',mode:0o600});\nconsole.log(JSON.stringify(result,null,2));if(!result.installed)process.exitCode=1;\nJS", "timeout": 30}
+
+## 2026-10-31T03:20:38.055Z toolResult bash
+{
+  "observedAt": "2026-10-31T03:20:37.947Z",
+  "installed": false,
+  "installExit": 1,
+  "installTimedOut": false,
+  "dailySchedule": "0 3 * * *",
+  "timezone": "America/New_York",
+  "temporaryProbeSchedule": "* * * * *",
+  "existingEntriesPreserved": true,
+  "wrapperSHA256": "d5c4130f07c8030bbb44120acc9cfaa7164d7ce500180e52cd12e566b3d0c2e5",
+  "shellSyntaxCheckPassed": true,
+  "perSlotAttemptClaim": true,
+  "automaticTraitSubmission": false,
+  "secretsCopied": false
+}
+
+
+Command exited with code 1
+
+## 2026-10-31T03:21:31.260Z assistant
+TOOL bash {"command": "curl --max-time 25 -s -o /dev/null -w 'app_http=%{http_code}\\n' http://127.0.0.1:3000/; curl --max-time 20 -s -o /dev/null -w 'token_endpoint_http=%{http_code}\\n' 'http://127.0.0.1:3000/api/token?room=soulbound&name=healthcheck-006'; node --input-type=module <<'JS'\nimport {spawnSync} from 'node:child_process';\nconst root=`${process.env.HOME}/.config/soulbound/ticket-006`;\nconst q=s=>\"'\"+s.replaceAll(\"'\",\"'\\\\''\")+\"'\";\nconst wrapper=`${root}/cron/dream-nightly.sh`;\nconst r=spawnSync('/usr/bin/crontab',['-l'],{encoding:'utf8',timeout:10000});\nif(r.status===0&&r.stdout.trim())throw new Error('Nonempty crontab detected; no diagnostic install attempted');\nif(r.status!==0&&!/no crontab/i.test(r.stderr||''))throw new Error('Cannot safely read crontab');\nconst content=`0 3 * * * ${q(wrapper)} daily >> ${q(`${root}/cron/daily.log`)} 2>&1 # SOULBOUND-006-DAILY\\n* * * * * ${q(wrapper)} probe >> ${q(`${root}/cron/probe.log`)} 2>&1 # SOULBOUND-006-PROBE\\n`;\nconst install=spawnSync('/usr/bin/crontab',['-'],{input:content,encoding:'utf8',timeout:10000});\nconsole.log(JSON.stringify({cronInstallExit:install.status,cronInstallDiagnostic:(install.stderr||'').trim().slice(0,1500)},null,2));\nJS", "timeout": 65}
+
+## 2026-10-31T03:21:41.323Z toolResult bash
+app_http=200
+token_endpoint_http=200
+{
+  "cronInstallExit": 1,
+  "cronInstallDiagnostic": "crontab: tmp/tmp.78346: Operation not permitted"
+}
+
+
+## 2026-10-31T03:21:44.803Z assistant
+TOOL read {"path": "/Users/tolushekoni/.agents/skills/wizard/SKILL.md", "offset": null, "limit": null}
+
+## 2026-10-31T03:21:44.810Z toolResult read
+---
+name: wizard
+description: Generate an interactive bash wizard that walks a human through steps only they can perform. Use when provisioning infrastructure, setting up credentials or CI secrets, walking an unfamiliar third-party dashboard, or running a one-off migration or cutover. Don't invoke this for steps the agent can perform itself.
+---
+
+# Wizard
+
+A **wizard** is a bash script that walks a human, step by step, through a manual procedure that's tedious to do by hand and tedious to re-explain to an AI every time. It opens each URL, says exactly what to click and copy, captures the values, writes them where they belong (`.env`, GitHub secrets), confirms at every stage, and shows how many stages are left. It might configure third-party services, run a one-off migration, or move the project from one state to another.
+
+The delightful UX is already solved by [template.sh](template.sh): stage-by-stage progress, confirmation gates, cross-platform URL opening (including WSL), hidden secret entry, idempotent `.env` upserts, `gh secret`/`gh variable` writes, and a closing summary. **Your job is only to scope the procedure and author its stages.** The library above the `STAGES` marker is identical in every wizard; that consistency is the point: never hand-edit it.
+
+A wizard is ephemeral by default: built for one run, saved to a scratch or `scripts/` path, deleted when the job's done. Commit it only when the user wants a repeatable setup path that should live in the repo.
+
+## Process
+
+### 1. Scope the procedure
+
+Work out every manual step the human must take and every value that gets captured along the way. Read the repo first, don't ask cold:
+
+- For setup: `.env`, `.env.example`, `.env.*`, `README`, `docker-compose*`, framework config, and `.github/workflows/*` (every `secrets.*` / `vars.*` reference is a value the wizard must produce).
+- For a migration or transition: the current state, the target state, and the irreversible actions between them.
+
+Then show the user the ordered list of stages and the values each produces, and confirm: they may add, drop, or reorder.
+
+**Done when:** every stage is named in order, and for each captured value you know (a) where the human gets it, (b) where it's written (`.env`, a GitHub secret, both, or nowhere; some stages are pure actions), and (c) whether it's secret (hidden entry) or public.
+
+### 2. Map each stage's journey
+
+For each stage, write the precise path a human follows: which URL to open, what to do there, where a value is shown, which variable it fills: e.g. "Dashboard → Developers → API keys → Reveal test key → copy". Where you don't actually know the current UI or the exact command, say so and ask the user or check the docs: never invent steps that may not exist.
+
+**Done when:** every stage traces to concrete instructions a stranger could follow.
+
+### 3. Author the wizard
+
+Copy `template.sh` to the target path. Replace the example stage with one `stage` per step, in dependency order. Use the library helpers: `stage`, `say`/`step`, `open_url`, `ask`/`ask_secret`, `write_env`, `set_secret`/`set_var`, `pause`/`confirm`. Set `TOTAL_STAGES` to the number of stages you wrote.
+
+Hold the bar the template sets: open the URL before asking for its value, use `ask_secret` for anything secret, `write_env` every persisted value, `set_secret` only the values CI actually needs, and `confirm` before any irreversible action. Each `stage` clears the screen so only the current step is visible: keep a stage to one focused task so nothing the human needs scrolls away. Don't touch the library above the marker.
+
+### 4. Verify and hand off
+
+- `bash -n <script>`; run `shellcheck` if available.
+- `chmod +x <script>`.
+- Don't run it end-to-end yourself: it opens browsers and blocks on human input. Trace it statically instead: every value from step 1 is captured and lands where step 1 said, and every `set_secret` name exactly matches a `secrets.*` reference in CI.
+- Tell the user how to run it. If it's a repeatable setup path, commit it and link it from the README so the next person runs the script instead of asking an AI.
+
+
+## 2026-10-31T03:22:34.152Z assistant
+TOOL bash {"command": "node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" --input-type=module <<'JS'\nimport {spawnSync} from 'node:child_process';\nconst worker=spawnSync('/bin/ps',['eww','-p','90591','-o','command='],{encoding:'utf8',maxBuffer:2000000});\nconst value=k=>new RegExp('(?:^|\\\\s)'+k+'=([^\\\\s]*)').exec(worker.stdout||'')?.[1];\nconst cron=spawnSync('/usr/bin/crontab',['-l'],{encoding:'utf8',timeout:10000});\nconsole.log(JSON.stringify({workerEnabled:['true','1'].includes((value('MEMORY_ENABLED')||'').toLowerCase()),workerUsesDreamMemoryStore:value('MEMORY_STORE_PATH')===process.env.MEMORY_STORE_PATH,workerUsesDreamOwner:value('MEMORY_OWNER_ID')===process.env.MEMORY_OWNER_ID,workerUsesGenesisCharacter:value('MEMORY_CHARACTER_ID')==='895354',cronJobInstalled:cron.status===0&&cron.stdout.includes('SOULBOUND-006'),terminalProgram:process.env.TERM_PROGRAM||'not available',privateValuesExported:false},null,2));\nJS", "timeout": 30}
+
+## 2026-10-31T03:22:34.288Z toolResult bash
+{
+  "workerEnabled": true,
+  "workerUsesDreamMemoryStore": true,
+  "workerUsesDreamOwner": true,
+  "workerUsesGenesisCharacter": true,
+  "cronJobInstalled": false,
+  "terminalProgram": "rex",
+  "privateValuesExported": false
+}
+
+
+## 2026-10-31T03:23:00.081Z assistant
+TOOL edit {"path": "docs/dreams.md", "edits": [{"oldText": "Spark 1.3\\'s voice path is untouched.", "newText": "Spark 1.3's voice path is untouched."}, {"oldText": "trait value substitutes for that evidence.", "newText": "trait value substitutes for that evidence.\n\n## Local scheduler activation — 2026-10-31\n\nTolu chose local cron. A private 0700 wrapper was prepared at\n`~/.config/soulbound/ticket-006/cron/dream-nightly.sh`; it references existing env\nfiles without copying credentials, uses absolute Node/repo paths, and generates\nprivate journals only. A per-slot directory claim prevents repeated inference\ncharges after a failed attempt; inspect any failure before manually permitting a\nretry. Proposed daily schedule: **03:00 America/New_York** (host timezone; DST\napplies). A temporary once-per-minute probe would prove an actual cron fire, then\nbe removed; its fixed one-attempt slot prevents repeated model calls.\n\n**Installation is blocked, not complete.** Native `crontab -` returned\n`crontab: tmp/tmp.78346: Operation not permitted`; readback confirms no ticket-006\njob installed. No cron fire is claimed. Resolve macOS permissions in the hosting\nterminal/app before retrying. Because this repo is on Desktop, the cron daemon\nalso needs permission to read that protected location. Do not bypass privacy\ncontrols, relocate secret files or claim that a manual wrapper run proves cron.\n\nThe existing browser dev server was restarted without app-source changes: `/` and\n`/api/token` both returned HTTP 200. LiveKit and the agent were not restarted.\nA private environment check confirms the running worker has memory enabled for\ncharacter 895354 and uses the same owner/store as dream. Actual new conversational\nmemory persistence still requires a real user conversation and a read-only check\nof the resulting store; configuration alone is not that proof."}]}
+
+## 2026-10-31T03:23:00.104Z toolResult edit
+Successfully replaced 2 block(s) in docs/dreams.md.
+
+## 2026-10-31T03:24:02.926Z assistant
+TOOL bash {"command": "node --input-type=module <<'JS'\nimport {writeFile,readFile,lstat} from 'node:fs/promises';\nimport {spawnSync} from 'node:child_process';\nimport assert from 'node:assert/strict';\nconst root=`${process.env.HOME}/.config/soulbound/ticket-006`;\nconst check=`import assert from 'node:assert/strict';\nimport {readFile,lstat} from 'node:fs/promises';\nimport {spawnSync} from 'node:child_process';\nimport {fileURLToPath} from 'node:url';\nconst wrapper=fileURLToPath(new URL('./dream-nightly.sh',import.meta.url));\nassert.equal((await lstat(wrapper)).mode&0o777,0o700);\nassert.equal(spawnSync('/bin/sh',['-n',wrapper]).status,0);\nassert.equal(spawnSync('/bin/sh',[wrapper,'invalid-mode'],{stdio:'ignore'}).status,64);\nconst source=await readFile(wrapper,'utf8');\nassert.ok(source.includes('--live-models'));\nassert.ok(!source.includes('--send')&&!source.includes('--approval'));\nconsole.log('Private wrapper syntax, mode rejection and no-submission checks passed');\n`;\nawait writeFile(`${root}/cron/check-wrapper.mjs`,check,{flag:'wx',mode:0o600});\nconst tested=spawnSync(process.execPath,[`${root}/cron/check-wrapper.mjs`],{encoding:'utf8'});\nassert.equal(tested.status,0);console.log(tested.stdout.trim());\nconst report={observedAt:new Date().toISOString(),appSourceChanged:false,appHealthStatus:200,tokenEndpointHealthStatus:200,agentAndLiveKitRestarted:false,workerMemoryEnabled:true,workerStoreAndOwnerMatchDream:true,privateWrapperPrepared:true,privateWrapperChecksPassed:true,dailySchedule:'0 3 * * *',timezone:'America/New_York',cronInstalled:false,cronInstallError:'crontab: tmp/tmp.78346: Operation not permitted',actualCronFireObserved:false,manualMacOSPermissionStepRequired:true,personalMemoryContentExported:false,traitTransactionsSignedOrSent:0};\nawait writeFile('audit/006-dream-cycle/pi-local-cron-activation-blocked.json',JSON.stringify(report,null,2)+'\\n',{flag:'wx',mode:0o600});\nconsole.log(JSON.stringify(report,null,2));\nJS\ngit diff --check -- agent/dream docs/dreams.md; git status --short -- app agent/src", "timeout": 30}
+
+## 2026-10-31T03:24:03.137Z toolResult bash
+Private wrapper syntax, mode rejection and no-submission checks passed
+{
+  "observedAt": "2026-10-31T03:24:03.110Z",
+  "appSourceChanged": false,
+  "appHealthStatus": 200,
+  "tokenEndpointHealthStatus": 200,
+  "agentAndLiveKitRestarted": false,
+  "workerMemoryEnabled": true,
+  "workerStoreAndOwnerMatchDream": true,
+  "privateWrapperPrepared": true,
+  "privateWrapperChecksPassed": true,
+  "dailySchedule": "0 3 * * *",
+  "timezone": "America/New_York",
+  "cronInstalled": false,
+  "cronInstallError": "crontab: tmp/tmp.78346: Operation not permitted",
+  "actualCronFireObserved": false,
+  "manualMacOSPermissionStepRequired": true,
+  "personalMemoryContentExported": false,
+  "traitTransactionsSignedOrSent": 0
+}
+
+
+## 2026-10-31T03:24:14.024Z assistant
+TOOL bash {"command": "python3 - <<'PY'\nimport json,os,re\nparts=['# Ticket 006 — local scheduler activation attempt\\nBegins at Tolu\\'s choice of the local recommendation. Reasoning omitted; credential-shaped strings redacted. Cron installation failed; no scheduled fire is claimed.\\n'];started=False\nwith open(os.environ['PI_SESSION_FILE']) as f:\n for line in f:\n  e=json.loads(line)\n  if e.get('type')!='message':continue\n  m=e.get('message',{});r=m.get('role','');c=m.get('content',[])\n  if isinstance(c,str):c=[{'type':'text','text':c}]\n  if r=='user' and any(b.get('type')=='text' and b.get('text','').strip()=='ok lets go with recommendation then' for b in c):started=True\n  if not started or r not in ('user','assistant','toolResult'):continue\n  out=[]\n  for b in c:\n   if b.get('type')=='text':out.append(b.get('text',''))\n   elif b.get('type')=='toolCall':out.append('TOOL '+b.get('name','')+' '+json.dumps(b.get('arguments',{}),ensure_ascii=False))\n  if out:parts.append(('\\n## '+e.get('timestamp','')+' '+r+' '+m.get('toolName','')).rstrip()+'\\n'+'\\n'.join(out))\nassert started\ntext='\\n'.join(parts)\ntext=re.sub(r'LLM\\|[^\\s\\\"\\'`]+','[REDACTED_META_KEY_SHAPE]',text)\ntext=re.sub(r'\\b(?:sk|rk|sk-proj)-[A-Za-z0-9_-]{16,}','[REDACTED_KEY_SHAPE]',text)\np='audit/006-dream-cycle/pi-local-cron-session.log'\nwith open(p,'x') as f:f.write(text+'\\n')\nos.chmod(p,0o600)\nprint('Redacted local-cron transcript exported')\nPY", "timeout": 30}

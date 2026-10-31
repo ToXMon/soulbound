@@ -5,6 +5,25 @@ pub const MAX_TRAIT_VECTOR_LEN: usize = 128;
 pub const CHARACTER_NAME: &str = "SOULBOUND Character";
 pub const MEMORY_ROOTS_SEED: &[u8] = b"memory_roots";
 pub const MAX_MEMORY_ROOTS: usize = 128;
+pub const DREAM_SEED: &[u8] = b"dream";
+pub const MAX_ATTRIBUTES: usize = 16;
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
+pub struct TraitAttribute {
+    pub key: String,
+    pub value: String,
+}
+
+/// Separate provenance account preserves the deployed 154-byte config layout.
+#[account]
+#[derive(InitSpace)]
+pub struct DreamState {
+    pub config: Pubkey,
+    pub bump: u8,
+    pub journal_hash: [u8; 32],
+    pub revision: u64,
+    pub timestamp: i64,
+}
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace, Debug, PartialEq, Eq)]
 pub struct MemoryRootEntry {

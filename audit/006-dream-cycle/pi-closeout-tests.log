@@ -1,0 +1,39 @@
+✔ versioned responses reject invented references, reserved keys, duplicates and malformed values (15.65875ms)
+✔ read-only graph snapshot works with the voice writer lock held, validates hashes, never writes source (54.215333ms)
+✔ recorded model responses use structured output and the fixed Meta model ID (0.703375ms)
+✔ approved provider substitution uses one Meta client for Spark consolidation and Wonder review (0.567166ms)
+{"state":"fixture-journal-written","fixture":true,"journalHash":"145836ee9e683018a02a36888253802db3782ae6f8577eafddca3c76c69ff2b3","memoryReferences":1,"proposalHash":"8a6f4fc9204af22331d6861a36de7cabc1f5f95f1c64095f518e732bb93f8e5a"}
+✔ run-once writes immutable, hash-linkable fixture journal; fixture can never send (37.88175ms)
+✔ trait encoding matches generated IDL discriminator and Borsh full list (3.401167ms)
+✔ Core decoder agrees with actual LiteSVM mpl_core.so output and rejects bad authority/bounds (1.329ms)
+✔ dry-run, exact approval, ambiguous send, durable signature, expiry: never blind re-sign (177.45125ms)
+✔ canonical u64, exact hex decode, preserved config/history derivation and actual IDL instruction (21.370417ms)
+✔ validated sealed manifest consumed; empty/unsealed and changed record bytes refused (67.067416ms)
+✔ dry-run default simulates, never signs/sends; private journal permissions (53.08175ms)
+✔ wrong cluster, identity, signer, program and PDA refused before signing (99.408542ms)
+✔ signature persisted BEFORE send; restart reconciles same root without resend (89.960333ms)
+✔ same epoch different root conflicts, including earlier journals when chain advances (81.907667ms)
+✔ ambiguous send accepted on chain reconciles; timeout with no readback stays pending (243.581542ms)
+✔ failed signature never becomes success; RPC ambiguity preserves pending journal (119.784042ms)
+✔ journal lock serializes concurrent invocations; corruption fails closed (55.062542ms)
+✔ actual adapter decodes config/history and refuses corrupt association (33.880625ms)
+✔ RPC transport retries reads only, sanitizes failures and bounds attempts (604.842291ms)
+✔ RPC outage has no voice integration; CLI missing settings fails visibly and help documents flags (299.552167ms)
+✔ rotation: IDL-compatible dual-signature instruction, no writable asset/history accounts (2.299ms)
+✔ rotation: dry-run never signs or broadcasts; no-op, wrong identity/cluster/runtime refused (41.175125ms)
+✔ rotation: approval is action/identity/cost/expiry bound, never implicit (7.816542ms)
+✔ rotation: signature durable before send, restart reconciles current signer without resend (49.176417ms)
+✔ rotation: ambiguous send stays pending, confirmation alone never proves readback, expiry checked before retry (51.951166ms)
+✔ rotation: failed send and corrupt journal stop without signing again (43.366292ms)
+✔ rotation adapter: unsigned simulation estimates fee with zero allocation rent, without opening keys (20.73025ms)
+✔ rotation CLI: explicit command, documented Mac-only signing, no settings or keys created by help/dry-run (260.660667ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 28
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2472.821292
+
+closeout build/tests exit=0

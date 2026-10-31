@@ -1,0 +1,28 @@
+{
+  "state": "unsigned-negative-authorization-simulations-only",
+  "observedAt": "2026-10-31T02:49:08.928Z",
+  "ownerEvolveRejected": {
+    "InstructionError": [
+      0,
+      {
+        "Custom": 6009
+      }
+    ]
+  },
+  "ownerDirectCoreUpdateRejected": {
+    "InstructionError": [
+      0,
+      {
+        "Custom": 26
+      }
+    ]
+  },
+  "programUnits": 14163,
+  "coreUnits": 12750,
+  "snapshotUnchanged": true,
+  "provenanceRevision": "0",
+  "traitTransactionsSigned": 0,
+  "traitTransactionsBroadcast": 0,
+  "dummyJournalHashUsedOnlyForRejectionProbe": true,
+  "modelCalls": 0
+}

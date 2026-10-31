@@ -1,4 +1,6 @@
 #[cfg(test)]
+mod test_evolve_traits;
+#[cfg(test)]
 mod test_initialize_character;
 #[cfg(test)]
 mod test_commit_memory_root;

@@ -1,0 +1,1548 @@
+# Ticket 006 — approved upgrade execution transcript
+Begins at Tolu's upgrade-plan approval. Text and tool calls/results retained; reasoning blocks omitted. Credential-shaped strings redacted. Upgrade receipts are real; negative trait probes are unsigned simulations only.
+
+
+## 2026-10-31T02:29:13.057Z user
+approve plans proceed
+
+## 2026-10-31T02:29:20.677Z assistant
+TOOL bash {"command": "git status --short; git log -1 --oneline; ls agent/dream; ls -l programs/soulbound/target/deploy/soulbound.so; printenv PI_SESSION_FILE", "timeout": 30}
+
+## 2026-10-31T02:29:20.760Z toolResult bash
+?? .agents/skills/akash-tenant/
+?? .atskills/
+?? .backpassrc.json
+?? docs/gtm/
+?? docs/memory-comparison-research-plan.md
+?? tickets/021-recall-into-conversation.md
+23add43 feat: add dream cycle and runtime-gated trait evolution (ticket 006)
+chain.ts
+consolidator.ts
+dream.cron
+dream.test.ts
+fixtures
+journal.ts
+plan-upgrade.ts
+run-once.ts
+wonder-prompt.ts
+-rwxr-xr-x@ 1 tolushekoni  staff  291136 Oct 30 20:49 programs/soulbound/target/deploy/soulbound.so
+/Users/tolushekoni/.pi/agent/sessions/--Users-tolushekoni-Desktop-soulbound--/2026-10-30T23-47-25-818Z_01a18f36-09f6-73ac-bcbb-5b4d662987e0.jsonl
+
+
+## 2026-10-31T02:29:29.717Z assistant
+I’ll proceed with the proposed upgrade only, after refreshing costs and verifying the approved binary hash and authority. The first trait transaction still needs a real journal, unsigned simulation, and separate approval.
+
+
+TOOL codemode {"code": "for(const path of [\"docs/dreams.md\",\"docs/005-committer-runbook.md\",\"agent/dream/plan-upgrade.ts\",\".agents/skills/solana-production-readiness/SKILL.md\"])text(await tools.read({path}));\ntext(await tools.bash({command:\"ls -d ~/.config/soulbound* ~/.local/share/soulbound* 2>/dev/null; ls programs/soulbound/tests/fixtures; ls -d /tmp/*005* /tmp/*deploy* 2>/dev/null\",\"timeout\":30}));\n"}
+
+## 2026-10-31T02:29:29.838Z toolResult codemode
+Script completed
+Wall time 0.1 seconds
+Output:
+
+Warning: truncated output (original token count: 11426)
+Total output lines: 763
+
+==> text 1/5 <==
+# Dream cycle — ticket 006
+
+## Authority and migration
+
+Tolu-approved thinker resolution (2026-10-30): **do not attach an mpl-core
+Oracle adapter**. `UpdatePluginV1` uses plugin authority, not Oracle lifecycle
+validation. The genesis asset already has config-PDA update authority. The only
+new signing path is `evolve_traits`: canonical config + configured runtime
+signature → PDA-signed CPI to the pinned Core program. A direct owner or
+third-party Core call cannot sign as the config PDA. No genesis changes.
+
+The deployed `CharacterConfig` stays **154 bytes**, preserving 005's strict
+reader, rotation and memory-root tooling. Journal provenance lives in a separate
+**89-byte `DreamState` PDA**, seeds `["dream", config]`, with fields:
+`config, bump, journal_hash[32], revision(u64), timestamp(i64)`. The first authorized
+evolution allocates it atomically. Latest hash is stored; `TraitsEvolved` events
+carry historical hashes and revisions. No reset/close/reallocation instruction.
+
+`evolve_traits(expected_revision, journal_hash, new_attributes)` rejects:
+- non-runtime signer, unsigned runtime, wrong config/asset/Core program;
+- stale revision, zero/repeated journal hash, invalid provenance binding;
+- duplicate/empty keys or values, >16 attributes, >32-byte keys or >128-byte values;
+- missing existing keys or required `mood`/`trait_vector`;
+- `life_stage` or `memory_epoch` inconsistent with config.
+
+Fetch-modify-write is **the complete ordered Attributes list**, not a plugin
+patch. Unknown existing keys are retained. Only Wonder-proposed `mood` and
+`trait_vector` values are applied by the client; lifecycle/epoch come from config.
+Failures roll back both Core changes and provenance creation/update. Runtime
+rotation takes effect immediately because the instruction reads the current
+config every time. Trust boundary: owner-authorized rotation and program upgrades
+remain existing administrative powers; this is not protection against a malicious
+upgrade authority or an owner deliberately installing a new runtime.
+
+## Offline reproduction (no keys, model calls, or broadcast)
+
+Use Node 24+ (native TypeScript stripping) and the already-installed agent deps.
+The `../dist/memory/` imports reuse 004/005; build the agent first if absent:
+
+```sh
+pnpm --filter agent build
+node --test agent/dream/dream.test.ts
+node agent/dream/run-once.ts --character genesis --out /tmp/dream-fixture.json
+```
+
+Default mode replays `agent/dream/fixtures/recorded.json`: **synthetic recorded
+responses, not live inference or real memories**. Both journal and stdout say
+`fixture`. `--fixture FILE` selects another explicitly labeled fixture. Fixture
+journals are rejected by the chain path even with `--send`. Existing output is
+never overwritten. Use a fresh output filename for another run.
+
+Program build/test stays inside `sb-anchor:1.2.1`. The existing Mac-local program
+keypair was found to have public identity `7VRcVdvsaAZdNAn4wcSwNPVrJGc8LbSLzg4qL8oXrCuv`,
+not the pinned program ID. It was **not** regenerated, synchronized, or used to
+sign. `--ignore-keys` skips that local build-only comparison, preserving
+`declare_id!` and `Anchor.toml`. Never use that keypair to identify a deployment.
+
+```sh
+docker run --rm --platform linux/amd64 \
+  -v sbcargo:/usr/local/cargo/registry -v sb006-platform:/root/.cache \
+  -v "$PWD/programs/soulbound:/w" -w /w sb-anchor:1.2.1 sh -c \
+  'unset RUSTUP_TOOLCHAIN; anchor build --ignore-keys && cargo test -p tests -- --nocapture --test-threads=1'
+cmp programs/soulbound/target/idl/soulbound.json programs/soulbound/idl/soulbound.json
+```
+
+Keep `RUSTUP_TOOLCHAIN` unset: pinned `anchor-lang-idl` 0.1.4 incorrectly passes
+literal `+{toolchain}` to Cargo when it is set. The repository's `rust-toolchain.toml`
+still pins 1.99.1. The first run needs network access for rustup's pin check and
+the image's pinned SBF platform-tools (v1.57); subsequent runs reuse the named cache. No wallet directory
+is mounted. Do not run keygen, keys sync, or `anchor test --skip-local-validator`.
+The last command deploys; it is not the LiteSVM runner. Tests use the existing real
+`mpl_core.so`, not a mock. Agent checks are doer self-checks, not independent review.
+
+Standalone strict dream typecheck (does not change 021's tsconfig):
+
+```sh
+cd agent
+./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext \
+  --moduleResolution NodeNext --allowImportingTsExtensions --allowJs \
+  --skipLibCheck dream/*.ts
+```
+
+## Live inference, off-chain only
+
+Private configuration stays outside the repo; never print it or source it with
+shell tracing enabled. The ticket's file scope excludes `.env.example`, so these
+settings are documented here instead:
+
+| Variable | Purpose |
+| --- | --- |
+| `MODEL_API_KEY` | non-contributor Meta account; Wonder only |
+| `BASETEN_API_KEY` | Spark Open consolidation |
+| `MEMORY_OWNER_ID` | explicit owner public key |
+| `MEMORY_CHARACTER_ID` | canonical decimal character ID (`895354` for genesis) |
+| `MEMORY_STORE_PATH` | existing private 004 store root |
+| `MEMORY_COMMIT_RPC_URL` | HTTPS devnet RPC; never logged |
+| `MEMORY_COMMIT_RUNTIME_PUBLIC_KEY` | expected current runtime public key |
+| `MEMORY_COMMIT_FEE_PAYER` | funded system-wallet public key |
+| `MEMORY_COMMIT_RUNTIME_KEY_FILE` | existing Mac-local private key reference; send only |
+| `MEMORY_COMMIT_FEE_PAYER_KEY_FILE` | existing payer key reference; send only |
+
+```sh
+node agent/dream/run-once.ts --character genesis --live-models \
+  --out /ABSOLUTE/PRIVATE/PATH/dreams/2026-10-31.json
+```
+
+Real journal parents must be 0700; journals and key files must be regular 0600
+files. Permissions are checked, not silently relaxed. 004 persists by atomic
+rename, so dream takes a coherent **read-only** `store.json` snapshot, validates
+records/content hashes/manifests with 004's own validators, and never acquires its
+lifetime writer lock. The voice worker can remain running. Memories persisted
+after this read belong to the next snapshot. Dream never creates, writes,
+consolidates or deletes the source store. Consolidation is a derived view in the
+journal. Full history (including supersession references) is supplied up to 200
+memories/150KB, with a 2MB source-file bound; larger/empty graphs fail explicitly,
+not truncate.
+
+Calls are fixed to Meta `https://api.meta.ai/v1`, `muse-wonder-1.0`, and Baseten
+`https://inference.baseten.co/v1`, **`muse-spark-open-1026`**. Spark 1.3's voice path
+is untouched. Structured JSON v1 is locally validated, with cited IDs checked
+against the supplied graph. SDK automatic retries are off; transient server/rate
+failures have three bounded attempts with exponential jitter, no client-error
+retry. Provider bodies/keys are never logged. Live provider compatibility and
+actual inference remain unverified until a real authorized run; fixtures do not
+prove API availability or behavior.
+
+## Journal format and hash
+
+UTF-8 JSON, two-space indentation and final newline. Schema v1 contains:
+- `fixture`, `created_at` (UTC ISO timestamp), pinned `program` and `genesis`;
+- `snapshot`: exact owner/character/config/asset/runtime/payer, prior revision and
+  journal hash, full fetched attributes, config lifecycle/epoch;
+- `memories`: record IDs, committed content hashes, timestamps, summaries and
+  optional supersession references from the validated 004 graph;
+- fixed model IDs, structured `consolidation` themes with memory IDs;
+- Wonder `review`: journal prose, memory IDs, cited bounded changes;
+- `new_attributes`: full fetch-modify-write list, mechanically checked against review.
+
+**SHA-256 of the exact file bytes** is the 32-byte on-chain `journal_hash`.
+This is not 004's Keccak Merkle algorithm. The document does not contain its own
+hash. `readJournal` recomputes it; editing whitespace changes the approval and
+on-chain commitment. Preserve original private bytes for provenance; do not put
+personal memories or journal prose in public audit evidence. Export only hashes,
+counts, model IDs and public transaction/account data.
+
+## Deterministic scheduler
+
+`agent/dream/dream.cron` is an **uninstalled example**, not a claim that cron ran.
+Install through the operator's crontab after replacing its wrapper path. Example
+private wrapper (0700), with absolute Node/repo/config paths:
+
+```sh
+#!/bin/sh
+set -eu
+umask 077
+. /ABSOLUTE/PRIVATE/PATH/dream.env
+cd /ABSOLUTE/PATH/soulbound
+exec /ABSOLUTE/PATH/node agent/dream/run-once.ts --character genesis --live-models \
+  --out "/ABSOLUTE/PRIVATE/PATH/dreams/$(date -u +%F).json"
+```
+
+`dream.env` must export settings, be 0600, and never be committed. Create the
+private output directory first. Cron invokes once daily at 03:00 host time; date
+names are UTC. Same-day duplicate invocation refuses existing output. Inference
+and journaling alone are scheduled, **not chain submission**. An O_EXCL output
+lock serializes the whole invocation. After a crash, verify holder PID and journal
+integrity before manually removing a stale lock. Never auto-remove submission
+locks. To demonstrate the criterion, record the actual cron fire and resulting
+UTC journal timestamp/count/hash; a manual fixture run is not that evidence.
+
+## Trait committer: simulate → exact approval → send → reconcile
+
+No generation step broadcasts. Submitting an existing real journal is a separate
+operation. Default submission mode simulates unsigned, without opening key files:
+
+```sh
+node agent/dream/run-once.ts --journal /PRIVATE/dreams/DATE.json \
+  --ledger /PRIVATE/submissions/DATE.json
+```
+
+The chain must be upgraded first; a pre-upgrade simulation of the new instruction
+is expected to fail. Before submission, the current devnet genesis, executable
+program, canonical config/history, runtime, asset authority and full attributes
+are checked. `expected_revision` prevents stale overwrites/replay. A proposal with
+no changed attributes returns `no-trait-change` without signing.
+
+A dry run prints the full public intent, its `intentHash`, and current simulated
+CU/fee/balance plus **conservative maximum** rent (first DreamState and asset growth).
+No journals/prose are printed. Tolu separately approves that exact intent by a
+private JSON file containing:
+
+```json
+{
+  "action": "evolve_traits",
+  "approvedBy": "Tolu",
+  "intentHash": "COPY_THE_EXACT_DRY_RUN_HASH",
+  "program": "BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd",
+  "genesis": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "expiresAt": "REPLACE_WITH_APPROVED_FUTURE_UTC_TIME",
+  "maximumLamports": 1
+}
+```
+
+The example is deliberately unusable: replace the cap with the separately
+approved fee-plus-rent amount. Then and only then:
+
+```sh
+node agent/dream/run-once.ts --journal /PRIVATE/dreams/DATE.json \
+  --ledger /PRIVATE/submissions/DATE.json --send --approval /PRIVATE/approval.json
+```
+
+State and approval are rechecked after simulation and before signing. Existing
+key references must match approved public identities. Full-list transactions
+larger than Solana's 1232-byte packet are rejected, never truncated. The signed
+signature/expiry is fsynced to a dedicated private submission ledger **before**
+the one broadcast; ambiguous transport does not resend. Restart the default
+read-only command to reconcile revision + hash + full attributes. Pending exits 2.
+Confirmed status alone is not trait readback. Expired/absent submissions return
+`expired-review-required`; even explicit `--send` never re-signs that ledger.
+Resolve via operator review and a newly approved attempt, not deleting history
+or blindly resetting the ledger. Keep journals/ledgers and their original bytes.
+
+## Upgrade approval boundary and live evidence
+
+Read-only current cost inputs (no key loading or send path):
+
+```sh
+node agent/dream/plan-upgrade.ts
+```
+
+This reports binary hash/size, actual upgrade authority/payer, program capacity,
+required extension, current rent and signature-fee quotes. The proposed buffer is
+an absent deterministic System `CreateAccountWithSeed` address (base = existing
+payer, seed = `sb006-` plus 26 hex characters of the binary hash, owner = loader).
+It needs **no new keypair**. Proposed schedule: atomic create+initialize (one
+transaction), fixed 900-byte ordered loader writes, extension if needed, then
+upgrade with buffer spill/refund to payer. The output includes public buffer
+address/seed, counts, rent and peak/permanent cost estimates. No buffer is created.
+
+Fees are **estimates**, not simulations of upload transactions; no priority fee is
+assumed. Re-read current inputs and obtain Tolu's exact schedule/binary/cap approval
+before any buffer creation, extension, upload, upgrade or funding. A different CLI
+buffer/chunking procedure requires a new plan and approval. Never use the
+mismatched program keypair; upgrade targets the preserved **public program ID**
+and existing authority.
+
+After the separately approved upgrade: confirm deployed bytes match the approved
+binary hash, preserve config/receipt/asset snapshots, generate a real dream and
+simulate its exact trait transaction. Ask Tolu for **another** approval before its
+first send. Funding, if needed, also requires a separate exact-action approval.
+
+## Offline handoff (2026-10-31 UTC)
+
+Prerequisite source: `cdc2934`. Read-only genesis snapshot confirmed current runtime
+`2CU934FR5LwgnngkBYTH2yzYvJ7UeXvSNYUnaoZBd6HM`, no DreamState, unchanged curious
+traits. No runtime/payer key files were opened, and no keys were created or moved.
+Anchor's initial local program-key identity check reported the mismatch; no signing
+occurred. That file's permissions were tightened to 0600, then its build comparison
+was skipped.
+
+Doer checks (not independent acceptance):
+- Pinned Docker SBF build + generated IDL succeeded; no stack-offset warning.
+- All **10 LiteSVM tests passed**, including the original 9; final extended test
+  run additionally covers revision overflow and attribute bounds. New evolution:
+  46,296 CU in the fixture; first provenance rent 1,102,360 lamports.
+- **7 dream client checks passed**; standalone strict typecheck passed.
+- **20 existing 005 client regression checks passed**; generated IDL matches snapshot.
+- Fixture CLI wrote an immutable timestamped journal with memory references/hash;
+  **no actual cron fire or live model inference was verified**.
+
+Command outputs and redacted execution transcript are under
+`audit/006-dream-cycle/pi-*`. `pi-build-test-final.log` is the successful combined
+build/IDL/test output; `pi-litesvm-final.log` is the later passing extended suite. The
+`pi-build-test-confirmed.log` capture timed out before completion and is not a
+success receipt; the subsequent complete LiteSVM run is the authoritative result.
+`pi-upgrade-plan-seeded.json` is the read-only proposed upgrade schedule/cost input,
+not permission to execute it. Earlier local logs/estimates, if retained, are
+historical and superseded. `pi-devnet-before.json` is the public before snapshot;
+`pi-fixture-journal.json` is explicitly synthetic. No personal memories were exported.
+
+Live acceptance remains pending until the actual cron invocation and approved
+transaction: capture the before/after complete Attributes, real signature,
+`TraitsEvolved` hash/revision/time, and independent journal-file hash readback.
+An address explorer link alone is not a historical before snapshot. Use real
+transaction links plus saved public before/after state; never invent an explorer
+signature or imply a fixture changed devnet. No live PASS is claimed by these files.
+==> text 2/5 <==
+# Ticket 005 — operator handoff (offline implementation; live gates open)
+
+This is not independent acceptance or a completed ticket. No deploy, funding,
+upgrade, key regeneration, signing or broadcast was performed. No fixture root
+satisfies the real-session criterion. Conversational recall is not implemented.
+
+## Prerequisite and boundary
+
+Checkout after `git pull --ff-only`: `5845c1c`, containing 004 implementation
+`2d3c982` and integrity fixes `0563e8c`. The 004 tests exercise corrupt manifest
+membership/progression, malformed proof metadata and cross-process writer
+exclusion/recovery. No 004 hashing/store code was modified. The historical
+`docs/004-review-and-005-readiness.md` predates those fixes; it remains untouched.
+
+The committer is a standalone CLI, not a worker scheduler. No chain imports,
+RPC requests, retries or confirmations enter `agent/src/index.ts`, extraction,
+speech or turn publication. The operator triggers each sealed namespace/epoch
+sequentially. An RPC outage can fail this process, not stall the voice process.
+Use Node >=20.18; Solana Kit is pinned to 8.6.0 (address/PDA/transaction/signature
+primitives). Stdlib fetch implements bounded JSON-RPC transport; stdlib private
+atomic files implement the journal. No legacy web3.js or Anchor JS dependency.
+
+## On-chain contract
+
+- Preserved program: `BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd`.
+- Config remains `[b"character", owner public key bytes, character_id u64 LE]`;
+  existing `CharacterConfig` is unchanged. No genesis asset/receipt updates.
+- History is `[b"memory_roots", config PDA bytes]`, canonical bump, same program.
+- Only `config.runtime_signer` may sign a commit, including first creation.
+  A separate signed system-wallet payer pays history rent; the transaction fee
+  payer can be that wallet. CLI uses the configured payer for both.
+- `init_if_needed` is intentional: first successful append atomically creates
+  the history. Existing association/bump are validated, never reset. There is
+  no close, edit, reset, migrate or delete handler for history.
+- Layout: discriminator 8 + config 32 + bump 1 + vec length 4 + 128 ×
+  (epoch 8 + root 32 + timestamp 8) = **6,189 bytes**. Fixed rent upfront;
+  129th entry rejects, never reallocates/truncates. Rent observed both in
+  LiteSVM and devnet RPC: **32,090,360 lamports**.
+- Empty entries, not config epoch, is the initial sentinel. First epoch may be
+  zero or greater; subsequent epochs must strictly increase. Epoch is assigned
+  directly to config; `u64::MAX` never wraps. Zero root is rejected. Root bytes
+  are exact hex-decoded 32 bytes, never a hash of the hex text.
+- `MemoryRootCommitted` is a fixed-size Anchor event with config, epoch, root
+  and chain Clock timestamp (Unix seconds). LiteSVM decodes actual `Program
+  data:` bytes and compares every field. Persistent history is authoritative;
+  logs alone are not an availability guarantee.
+- Error codes: 6002 unauthorized runtime, 6003 zero root, 6004 duplicate/regressed
+  epoch, 6005 full history, 6006 invalid association/bump; 6001 checked arithmetic.
+  Anchor's typed seed/owner/signer/program constraints handle wrong accounts.
+
+## Real-session setup — Tolu must do this first
+
+1. Choose the intended live config, not an alias. The existing genesis identity:
+   owner `CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1`, character `895354`,
+   config `74dRYy2RARkhQs963QcGZdVXhfjABm2BGC7WFwSd7Ehc`.
+   Its runtime is **`f97njkTdcbBrHL9vwFCLBHHURhB78YavqQRJGL2xktt`**.
+   The original genesis script discarded that runtime private key. Follow the
+   amended recovery procedure below: a NEW dedicated runtime key is created
+   on the Mac, then installed only by an explicitly approved dual-signature
+   rotation. Never regenerate/overwrite existing owner/program/deployer keys.
+   After confirmed rotation, configure the committer with the NEW public key
+   and its Mac-only key reference.
+2. Configure private `agent/.env` using placeholders in `agent/.env.example`:
+   `MEMORY_ENABLED=true`, private `MEMORY_STORE_PATH`, owner/character above,
+   RPC URL, preserved program ID, runtime public key, fee payer public key,
+   private journal filename and securely persisted Mac key-file references. Do not put raw
+   keys in env or the browser. Key/journal files must be 0600; journal directory
+   0700, outside the repository. Existing insecure permissions fail visibly,
+   never silently chmod a shared directory. Dry-run does not open signing keys.
+3. If existing live data uses `char…1426 tokens truncated… intent, create a
+private approval JSON OUTSIDE the repository. It must copy every public intent
+field exactly (`owner`, `characterId`, `config`, `history`, `runtime`, `payer`,
+`epoch`, `root`, `genesis`, `program`) and add `approvedBy: "Tolu"`, an ISO
+`expiresAt`, and integer `maximumLamports` approved by Tolu. This is a local
+operator interlock, not a cryptographic proof of human consent. No file has
+been created or approval inferred in this implementation session.
+
+```bash
+# ONLY AFTER explicit approval and real-session validation; never offline:
+node --env-file=agent/.env agent/scripts/commit-memory-root.mjs \
+  --epoch ACTUAL_SEALED_EPOCH --send --approval /PRIVATE/APPROVED-PLAN.json
+```
+
+The CLI rejects mismatched/expired approvals, wrong key public identities,
+insecure key files, insufficient fee-payer balance and costs over the approved
+cap. It never reads signing files for a dry-run. Do not substitute the owner key
+for the distinct runtime key. No automatic funding/upgrade command is embedded.
+
+## Amended runtime-signer recovery — Mac only, not performed
+
+Authority: ticket amendment and SOULBOUND decision entry at `964556a`.
+`/tmp/mint/mint-genesis.mjs:21` used
+`const runtimeSigner = Keypair.generate().publicKey;`; the 002 execution log
+confirms that script minted character `895354`. Only the public address was
+retained; this is not a key Tolu was expected to have saved or can reconstruct.
+
+The new instruction requires `config.owner` AND the replacement signer to
+sign. It deliberately does not require the lost runtime. Either signature
+alone fails; unrelated owner fails (6007); no-op fails (6008). Config is still
+154 bytes, with only bytes 48..80 changing. Seeds, owner, character ID, asset,
+receipt mint, memory_epoch, bump, account metadata and committed history are
+unchanged. `RuntimeSignerRotated` carries config, old signer, new signer and
+chain Clock timestamp. LiteSVM snapshots actual assets/receipt/history bytes
+and decodes the actual event. The stale runtime is rejected by REQ-11, and the
+replacement can append subject to the same epoch rules. No automatic rotation
+was added to the root committer or voice worker.
+
+### Tolu's Mac: create the dedicated replacement key
+
+Run locally on the Mac, NEVER in the VPS shell or a shared/recorded session.
+The pinned CLI's `--silent` option suppresses the seed phrase. This creates a
+NEW file and refuses to overwrite anything; do not add `--force`. Protect the
+Mac with FileVault and retain a secure local backup. Do not paste a seed phrase,
+JSON key bytes or private key into chat, evidence, Git or an environment value.
+Only the public address is shared for the transaction plan.
+
+```bash
+# MAC ONLY. Local key creation; no transaction or funding.
+(
+  umask 077
+  keydir="$HOME/.config/soulbound"
+  keyfile="$keydir/runtime-005.json"
+  mkdir -p "$keydir" || exit 1
+  test ! -e "$keyfile" && test ! -L "$keyfile" || {
+    printf '%s\n' 'Refusing to overwrite an existing key'; exit 1;
+  }
+  solana-keygen new --silent --outfile "$keyfile" || exit 1
+  chmod 600 "$keyfile" || exit 1
+  solana-keygen pubkey "$keyfile"
+)
+```
+
+No persistent replacement key was generated on the VPS. Ephemeral LiteSVM test
+keys are unrelated and must never become product/deployment keys. Memory stays
+in the Mac-local private 004 store; neither free-tier Neon instance is used.
+
+### Explicit rotation CLI and separate approval
+
+After the approved program upgrade, configure private Mac env references:
+`MEMORY_OWNER_ID`, decimal `MEMORY_CHARACTER_ID`, `MEMORY_COMMIT_RPC_URL`, pinned
+`MEMORY_COMMIT_PROGRAM_ID`, `MEMORY_COMMIT_FEE_PAYER`,
+`MEMORY_ROTATE_EXPECTED_RUNTIME_PUBLIC_KEY` (the old
+`f97njkTdcbBrHL9vwFCLBHHURhB78YavqQRJGL2xktt` address),
+`MEMORY_ROTATE_REPLACEMENT_PUBLIC_KEY` (the newly shared public address),
+`MEMORY_ROTATE_JOURNAL` (a dedicated private file for this exact rotation),
+`MEMORY_ROTATE_OWNER_KEY_FILE` and `MEMORY_ROTATE_REPLACEMENT_KEY_FILE`.
+If payer differs from both signers, also configure its existing private
+`MEMORY_COMMIT_FEE_PAYER_KEY_FILE`. The old runtime secret is never requested.
+The owner key must already be in secure Mac storage after a separately approved
+remediation; do not improvise moving keys or changing permissions to unblock it.
+
+```bash
+node --env-file=agent/.env agent/scripts/rotate-runtime-signer.mjs --dry-run
+```
+
+No memory session/store is needed for rotation. Dry-run builds and simulates
+an unsigned instruction, verifies devnet/program/config/history/current signer,
+and reports the fee/balance with **zero additional account rent**. It does not
+open signing-key files. Before the upgraded instruction exists, simulation is
+expected to reject; that is a blocker, not a successful dry-run.
+
+Present Tolu with the exact public intent, upgrade authority, owner,
+old/new runtime addresses, fee payer, balance and live fee estimate. WAIT for a
+**separate approval for this first new-signer transaction**, independent of
+upgrade/funding approvals. The rotation fee depends on distinct signers/payer;
+no live fee quote exists yet because the replacement public address is pending.
+
+The private rotation approval JSON must exactly include `action` equal to
+`rotate_runtime_signer`, `program`, `genesis`, `owner`, `characterId`, `config`,
+`history`, `expectedRuntime`, `replacement`, `payer`, `approvedBy: "Tolu"`,
+future ISO `expiresAt` and approved integer `maximumLamports`. It is a local
+operator interlock, not cryptographic proof of human approval. Root-commit
+approval files are not interchangeable with rotation approvals.
+
+```bash
+# MAC ONLY, ONLY AFTER the separate exact-action approval:
+node --env-file=agent/.env agent/scripts/rotate-runtime-signer.mjs \
+  --send --approval /PRIVATE/APPROVED-ROTATION.json
+```
+
+Signing is explicitly refused on non-macOS hosts, preventing accidental use of
+the replacement secret on the VPS. Both owner and replacement key identities
+are checked; the transaction is journaled privately before the single broadcast.
+Restart reconciles current config signer before any retry. Already-installed
+replacement is readback success without another send; an unrelated current
+signer is a hard conflict. A viable/confirmed signature without readback remains
+pending, never success. A new attempt requires an absent signature, finalized
+blockhash expiry, unchanged current signer and a fresh valid approval. Known
+transaction errors stop for review. Journal locks are fail-closed after a crash;
+verify the holder pid before any separately authorized stale-lock cleanup.
+
+After confirmed rotation, set `MEMORY_COMMIT_RUNTIME_PUBLIC_KEY` and its Mac
+key-file reference to the replacement. Then run the real memory session, seal,
+dry-run, and request the **separate root-commit approval**. Rotation does not
+satisfy the real-memory-root criterion.
+
+### Deployer-key remediation proposal — separate approval, NOT performed
+
+The exposed copy is the already-documented `/tmp/mint/deployer.json`; it was
+observed as root-owned mode 0644. The original `~/.config/solana/id.json` remains
+root-owned mode 0600. No permission change, key transfer, deletion, funding or
+upgrade-authority rotation was performed. Moving/restricting a copy cannot
+prove it was never read while accessible.
+
+Propose to Tolu a separately approved remediation plan: owner-controlled secure
+recovery to Mac-local storage followed by removal of the exposed VPS duplicate
+only after verifying the recovered **public** identity and backup. No secret
+should be displayed in terminal logs/chat/evidence or handled by this agent.
+If reliable protection/recovery is not possible (or exposure is treated as
+compromise), propose a **separate program-upgrade-authority rotation** to a
+secure Mac-controlled authority. This does not change character ownership or
+repair the lost runtime; those are distinct roles/actions.
+
+The pinned Solana 4.3.2 CLI supports the following command template. Do NOT run
+it until the NEW authority public key, secure local key references, payer,
+balance and current fee estimate are filled in and Tolu approves that exact
+transaction. New upgrade-authority key creation, any funding and asset/wallet
+migration are not implied by the runtime-key amendment. Do not use `--final`
+or skip the new-authority signature check.
+
+```bash
+# PROPOSAL TEMPLATE ONLY — separate future approval required, on the Mac.
+solana program set-upgrade-authority \
+  BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd \
+  --url devnet \
+  --keypair "${CURRENT_AUTHORITY_KEY:?secure local fee-payer/current-authority file required}" \
+  --upgrade-authority "${CURRENT_AUTHORITY_KEY:?}" \
+  --new-upgrade-authority "${NEW_UPGRADE_AUTHORITY_KEY:?separately approved secure local authority required}"
+```
+
+This uses the current authority as fee payer and requires the new authority's
+signature. Supply a read-only fresh plan/fee quote and obtain approval first;
+then independently verify the authority and unchanged program/config identity.
+This proposal neither rotates the character owner wallet nor claims removal of
+any exposure that may already have occurred.
+
+## Observed offline verification after the amendment
+
+- Pinned image: `anchor build` and
+  `cargo test -p tests -- --nocapture --test-threads=1`: 9 tests succeeded,
+  including 2 rotation cases and all existing genesis cases. The no-history
+  case also proves the unfunded replacement can commit epoch zero when a
+  separate payer covers rent/fees.
+- `env -u NODE_ENV pnpm build`: app and agent builds succeeded, with app dev
+  stopped (nothing listening on port 3000 before the build).
+- Ticket's combined Node command (committer, memory, TTS core/provider/pipeline,
+  live-latency report): 61 tests succeeded, zero failures. Rotation tests use
+  mock transactions only; no signing or broadcasting during offline checks.
+- Generated IDL and checked-in snapshot compare identically. Binary and IDL
+  hashes are recorded in `docs/devnet.md`. `git diff --check` was clean.
+- Existing memory tests still emit FileHandle garbage-collection warnings;
+  the pre-existing SBF dual-crate-type/LTO warning remains. No stack-offset
+  warning was observed. No 004 tests were weakened or its protocol altered.
+- Configured live dry-runs still require Mac settings, the new PUBLIC runtime
+  address and approved upgraded program. Missing-setting errors are blockers,
+  not simulated/live acceptance evidence.
+- No independent judge/consult tool is available in this harness. These are
+  doer self-checks, not independent verification. All ticket implementation
+  changes remain uncommitted while required live gates are open.
+
+## Readback and independent evidence still required
+
+After an approved send, rerun the same epoch dry-run to reconcile without
+rebroadcasting. Require chain readback of exact root and epoch, not just a
+signature. Independently recompute every content hash and Merkle root from the
+private records and validate inclusion/tamper rejection with 004's proof API.
+Keep raw memory private. Give AdaL the actual signature/explorer link, public
+runtime, root/epoch/config, source revision and SHA-256 of binary/IDL. Tolu
+supplies redacted session evidence; the doer does not edit `audit/`.
+
+Local deterministic fixtures and self-tests are not live Meta evidence or an
+independent audit. Required real extraction, approved upgrade, approved real
+root transaction and independent proof/readback evidence remain open. No commit
+is marked complete while these gates are open.
+==> text 3/5 <==
+#!/usr/bin/env node
+// Read-only cost inputs. This tool has no signing or send method.
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { address, AccountRole, createTransactionMessage, setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstruction, compileTransaction, blockhash, getAddressDecoder, createAddressWithSeed } from "@solana/kit";
+import { SolanaChain } from "../dist/memory/committer-solana.js";
+import { PROGRAM_ID, DEVNET_GENESIS, sha256, DREAM_SIZE } from "./chain.ts";
+const chain = new SolanaChain(process.env.MEMORY_COMMIT_RPC_URL ?? "https://api.devnet.solana.com");
+try {
+  if (await chain.rpc("getGenesisHash") !== DEVNET_GENESIS) throw new Error("wrong cluster");
+  const binary = await readFile(fileURLToPath(new URL("../../programs/soulbound/target/deploy/soulbound.so", import.meta.url)));
+  const get = async (key: string) => (await chain.rpc("getAccountInfo", [key, { encoding: "base64", commitment: "confirmed" }]) as any);
+  const program = await get(PROGRAM_ID);
+  const loader = "BPFLoaderUpgradeab1e11111111111111111111111";
+  if (!program.value?.executable || program.value.owner !== loader || program.value.data[1] !== "base64") throw new Error("wrong program loader");
+  const p = Buffer.from(program.value.data[0], "base64");
+  if (p.length !== 36 || p.readUInt32LE() !== 2) throw new Error("unexpected program metadata");
+  const programData = getAddressDecoder().decode(p.subarray(4, 36));
+  const data = await get(programData), bytes = Buffer.from(data.value.data[0], "base64");
+  if (data.value.owner !== loader || bytes.readUInt32LE() !== 3 || bytes[12] !== 1) throw new Error("program immutable or unexpected metadata");
+  const authority = getAddressDecoder().decode(bytes.subarray(13, 45));
+  const payer = process.env.MEMORY_COMMIT_FEE_PAYER ?? authority;
+  address(payer);
+  const rent = async (n: number) => await chain.rpc("getMinimumBalanceForRentExemption", [n]) as number;
+  const requiredProgramDataBytes = Math.max(bytes.length, 45 + binary.length);
+  const additionalProgramRent = Math.max(0, await rent(requiredProgramDataBytes) - data.value.lamports);
+  const bufferRent = await rent(37 + binary.length);
+  // System CreateAccountWithSeed needs only the existing payer/base signer, no new keypair.
+  const bufferSeed = `sb006-${sha256(binary).slice(0, 26)}`;
+  const buffer = await createAddressWithSeed({ baseAddress: address(payer), programAddress: address(loader), seed: bufferSeed });
+  if ((await get(buffer)).value !== null) throw new Error("planned seeded buffer already exists; operator must reconcile before planning another upload");
+  const latest = await chain.rpc("getLatestBlockhash", [{ commitment: "confirmed" }]) as any;
+  // Quote base fees from a current message; no compute-unit price or signing.
+  const quote = async (twoSigners: boolean) => {
+    const accounts = [{ address: address(payer), role: AccountRole.WRITABLE_SIGNER }];
+    if (twoSigners && payer !== authority) accounts.push({ address: address(authority), role: AccountRole.READONLY_SIGNER });
+    const tx = compileTransaction(appendTransactionMessageInstruction({ programAddress: address(loader), accounts, data: new Uint8Array() },
+      setTransactionMessageLifetimeUsingBlockhash({ blockhash: blockhash(latest.value.blockhash), lastValidBlockHeight: BigInt(latest.value.lastValidBlockHeight) },
+        setTransactionMessageFeePayer(address(payer), createTransactionMessage({ version: 0 })))));
+    const result = await chain.rpc("getFeeForMessage", [Buffer.from(tx.messageBytes).toString("base64"), { commitment: "confirmed" }]) as any;
+    if (result.value === null) throw new Error("fee unavailable"); return result.value as number;
+  };
+  const payerOnlyFee = await quote(false), authorityFee = await quote(true);
+  // Fixed proposed schedule, not a claim about the CLI's adaptive chunking.
+  const uploadChunksAt900Bytes = Math.ceil(binary.length / 900);
+  const extendTransactions = requiredProgramDataBytes > bytes.length ? 1 : 0;
+  const transactionFeeEstimate = payerOnlyFee * (1 + extendTransactions) + authorityFee * (uploadChunksAt900Bytes + 1);
+  console.log(JSON.stringify({ state: "read-only-unapproved-estimate", observedAt: new Date().toISOString(), slot: data.context.slot,
+    program: PROGRAM_ID, genesis: DEVNET_GENESIS, programData, authority, payer,
+    binaryBytes: binary.length, binarySHA256: sha256(binary), currentProgramCapacity: bytes.length - 45,
+    extensionBytes: Math.max(0, binary.length - (bytes.length - 45)), additionalProgramRentLamports: additionalProgramRent,
+    buffer, bufferSeed, bufferBase: payer, bufferOwner: loader, bufferAccountAbsent: true,
+    proposedSteps: [
+      "Atomic System CreateAccountWithSeed + loader InitializeBuffer: exact-sized buffer, authority is the existing upgrade authority; no new keypair.",
+      `Loader Write: ${uploadChunksAt900Bytes} ordered transactions, 900-byte chunks at offsets 0,900,..., final chunk shortened to binary length.`,
+      `ExtendProgram by ${Math.max(0, binary.length - (bytes.length - 45))} bytes if necessary, with existing payer.`,
+      "Loader Upgrade into the pinned program, spill/refund the temporary buffer to the payer; no close/deploy of the program account.",
+      "Read back deployed hash/authority/config/assets; do not submit evolve_traits without another exact approval.",
+    ],
+    temporaryBufferRentLamports: bufferRent, uploadChunksAt900Bytes,
+    proposedTransactionCount: 1 + uploadChunksAt900Bytes + extendTransactions + 1, payerOnlyFeeLamports: payerOnlyFee,
+    authorityFeeLamports: authorityFee, transactionFeeEstimateLamports: transactionFeeEstimate,
+    estimatedPermanentCostLamports: additionalProgramRent + transactionFeeEstimate,
+    estimatedPeakLamports: additionalProgramRent + bufferRent + transactionFeeEstimate,
+    payerBalanceLamports: (await chain.rpc("getBalance", [payer, { commitment: "confirmed" }]) as any).value,
+    firstDreamProvenanceBytes: DREAM_SIZE, firstDreamProvenanceRentLamports: await rent(DREAM_SIZE),
+    caveat: "UNAPPROVED proposal only; no buffer/key/transaction created or signed. Fees are current signature-fee quotes, not a simulation of upload transactions; no priority fee assumed. Execution must follow the fixed seeded-buffer/chunk schedule or obtain a new plan approval. Re-read all state/costs before approval. Trait transaction, asset growth rent and any funding are separate approvals.",
+  }, null, 2));
+} catch { console.error("read-only upgrade estimate failed (RPC/private details suppressed)"); process.exitCode = 1; }
+==> text 4/5 <==
+---
+name: solana-production-readiness
+description: Review a Solana Rust, Anchor, Native, or Pinocchio project for production readiness using STRIDE-style security, release, infrastructure, monitoring, and Triton transaction-delivery guidance. Use before devnet/mainnet deployment, capstone submission, public demo, audit prep, or when asked for production readiness.
+argument-hint: <project path or deployment target>
+---
+
+# Solana production readiness
+
+Load these resources first:
+
+- `resources/knowledge/production/stride-triton-production-readiness.md`
+- `resources/checklists/solana-security.md`
+- `resources/checklists/devnet-mainnet-readiness.md`
+
+## Procedure
+
+1. Identify the target: homework, devnet demo, capstone, or mainnet candidate.
+2. Inventory program authorities, upgrade authority, admin keys, treasury accounts, oracles, CPI targets, token programs, and off-chain services.
+3. Review code for account validation, checked arithmetic, state transitions, signer checks, owner checks, and PDA validation.
+4. Review release evidence: lockfiles, toolchain, reproducible-build notes, deploy command, program ID, and verification plan.
+5. Review infrastructure: RPC provider, retry behavior, priority fees, rate limits, monitoring, and incident response.
+6. Return only actionable gaps.
+
+## Output
+
+Return:
+
+1. Production readiness score by category.
+2. Critical blockers.
+3. Mainnet/devnet risks.
+4. Minimal fixes before deployment.
+5. Monitoring and incident-response additions.
+6. Evidence the project should capture before publishing.
+==> text 5/5 <==
+{"output":"/Users/tolushekoni/.config/soulbound\n/Users/tolushekoni/.local/share/soulbound-005-companion-55170579\nmpl_core.so\n/tmp/005_pnpm.log\n/tmp/005_verify.log\n/tmp/soulbound-003-deploy.local.yml\n/tmp/soulbound-005-litesvm.log\n","truncated":false,"exit_code":0,"wall_time_seconds":0}
+
+[Full output: /var/folders/dq/7tdhblg57vx0z2ptql1y9d9m0000gn/T/pi-codemode-dabde697fd34089c.txt (read with offset/limit)]
+
+## 2026-10-31T02:30:04.082Z assistant
+TOOL codemode {"code": "const root=\"/Users/tolushekoni/.local/share/soulbound-005-companion-55170579/skills/solana-production-readiness/\";\nfor(const p of [\"resources/knowledge/production/stride-triton-production-readiness.md\",\"resources/checklists/solana-security.md\",\"resources/checklists/devnet-mainnet-readiness.md\"])text(await tools.read({path:root+p}));\ntext(await tools.bash({command:\"find \\\"$HOME/.config/soulbound\\\" -maxdepth 1 -type f \\\\( -name '*.mjs' -o -name '*.ts' -o -name '*.sh' \\\\); node --env-file=agent/.env -e 'const keys=[\\\"MEMORY_COMMIT_RPC_URL\\\",\\\"MEMORY_COMMIT_FEE_PAYER_KEY_FILE\\\",\\\"MEMORY_ROTATE_OWNER_KEY_FILE\\\",\\\"MEMORY_COMMIT_RUNTIME_KEY_FILE\\\",\\\"MODEL_API_KEY\\\",\\\"BASETEN_API_KEY\\\"];console.log(JSON.stringify(Object.fromEntries(keys.map(k=>[k,Boolean(process.env[k])]))));'\",\"timeout\":30}));\n"}
+
+## 2026-10-31T02:30:04.155Z toolResult codemode
+Script failed
+Wall time 0.1 seconds
+Output:
+
+Script error:
+Error: ENOENT: no such file or directory, access '/Users/tolushekoni/.local/share/soulbound-005-companion-55170579/skills/solana-production-readiness/resources/knowledge/production/stride-triton-production-readiness.md'
+
+Tool calls made before the failure (they are not undone): read (error)
+
+## 2026-10-31T02:30:09.241Z assistant
+TOOL bash {"command": "find /Users/tolushekoni/.local/share/soulbound-005-companion-55170579 -name 'stride-triton-production-readiness.md' -o -name 'devnet-mainnet-readiness.md' -o -name 'solana-security.md'; find \"$HOME/.config/soulbound\" -maxdepth 1 -type f \\( -name '*.mjs' -o -name '*.ts' -o -name '*.sh' \\); node --env-file=agent/.env -e 'const keys=[\"MEMORY_COMMIT_RPC_URL\",\"MEMORY_COMMIT_FEE_PAYER_KEY_FILE\",\"MEMORY_ROTATE_OWNER_KEY_FILE\",\"MEMORY_COMMIT_RUNTIME_KEY_FILE\",\"MODEL_API_KEY\",\"BASETEN_API_KEY\"];console.log(JSON.stringify(Object.fromEntries(keys.map(k=>[k,Boolean(process.env[k])]))));'", "timeout": 30}
+
+## 2026-10-31T02:30:09.407Z toolResult bash
+/Users/tolushekoni/.local/share/soulbound-005-companion-55170579/knowledge/production/stride-triton-production-readiness.md
+{"MEMORY_COMMIT_RPC_URL":false,"MEMORY_COMMIT_FEE_PAYER_KEY_FILE":false,"MEMORY_ROTATE_OWNER_KEY_FILE":false,"MEMORY_COMMIT_RUNTIME_KEY_FILE":false,"MODEL_API_KEY":false,"BASETEN_API_KEY":false}
+
+
+## 2026-10-31T02:30:25.357Z assistant
+TOOL bash {"command": "node --input-type=module -e 'import {readdir,stat} from \"node:fs/promises\";import {join} from \"node:path\";const dir=join(process.env.HOME,\".config/soulbound\"); const files=await readdir(dir);let n=0;for(const f of files){if(f.endsWith(\".env\")||f===\"env\"){try{process.loadEnvFile(join(dir,f));n++;}catch{}}} const keys=[\"MEMORY_COMMIT_RPC_URL\",\"MEMORY_COMMIT_FEE_PAYER_KEY_FILE\",\"MEMORY_ROTATE_OWNER_KEY_FILE\",\"MEMORY_COMMIT_RUNTIME_KEY_FILE\",\"MODEL_API_KEY\",\"BASETEN_API_KEY\"];console.log(JSON.stringify({privateEnvFilesLoaded:n,settings:Object.fromEntries(keys.map(k=>[k,Boolean(process.env[k])])),privateDirectoryFileCount:files.length}));'", "timeout": 30}
+
+## 2026-10-31T02:30:25.446Z toolResult bash
+{"privateEnvFilesLoaded":0,"settings":{"MEMORY_COMMIT_RPC_URL":false,"MEMORY_COMMIT_FEE_PAYER_KEY_FILE":false,"MEMORY_ROTATE_OWNER_KEY_FILE":false,"MEMORY_COMMIT_RUNTIME_KEY_FILE":false,"MODEL_API_KEY":false,"BASETEN_API_KEY":false},"privateDirectoryFileCount":2}
+
+
+## 2026-10-31T02:30:48.109Z assistant
+TOOL bash {"command": "ls \"$HOME/.config/soulbound\"; ls -l \"$HOME/.config/solana/cli/config.yml\" \"$HOME/.config/solana/id.json\" 2>/dev/null; find \"$HOME/.local/share\" -maxdepth 2 -type d -name '*soulbound*'", "timeout": 30}
+
+## 2026-10-31T02:30:48.140Z toolResult bash
+runtime-005.json
+ticket-005
+-rw-r--r--@ 1 tolushekoni  staff  205 Oct 11 23:22 /Users/tolushekoni/.config/solana/cli/config.yml
+-rw-------@ 1 tolushekoni  staff  220 Jan  3  2025 /Users/tolushekoni/.config/solana/id.json
+/Users/tolushekoni/.local/share/soulbound-005-companion-55170579
+
+
+## 2026-10-31T02:30:55.161Z assistant
+TOOL bash {"command": "find \"$HOME/.config/soulbound/ticket-005\" -maxdepth 1 -type f ! -name '*key*' ! -name '*deployer*' ! -name '*owner*' -exec basename {} \\;", "timeout": 30}
+
+## 2026-10-31T02:30:55.219Z toolResult bash
+approved-runtime-rotation.json
+operator.env
+quicknode-v2.env
+rotation.env
+approved-memory-root-epoch-0.json
+quicknode.env
+
+
+## 2026-10-31T02:31:05.032Z assistant
+TOOL bash {"command": "node --input-type=module -e 'import {join} from \"node:path\";const dir=join(process.env.HOME,\".config/soulbound/ticket-005\");for(const f of [\"operator.env\",\"quicknode-v2.env\"])process.loadEnvFile(join(dir,f));const keys=[\"MEMORY_COMMIT_RPC_URL\",\"MEMORY_COMMIT_FEE_PAYER_KEY_FILE\",\"MEMORY_ROTATE_OWNER_KEY_FILE\",\"MEMORY_COMMIT_RUNTIME_KEY_FILE\",\"MODEL_API_KEY\",\"BASETEN_API_KEY\"];console.log(JSON.stringify({settings:Object.fromEntries(keys.map(k=>[k,Boolean(process.env[k])])),otherSettingNames:Object.keys(process.env).filter(k=>/QUICKNODE|UPGRADE|DEPLOY/.test(k))}));'", "timeout": 30}
+
+## 2026-10-31T02:31:05.100Z toolResult bash
+{"settings":{"MEMORY_COMMIT_RPC_URL":true,"MEMORY_COMMIT_FEE_PAYER_KEY_FILE":true,"MEMORY_ROTATE_OWNER_KEY_FILE":false,"MEMORY_COMMIT_RUNTIME_KEY_FILE":true,"MODEL_API_KEY":false,"BASETEN_API_KEY":false},"otherSettingNames":[]}
+
+
+## 2026-10-31T02:31:47.369Z assistant
+TOOL bash {"command": "docker run --rm --platform linux/amd64 --network none -v sbcargo:/usr/local/cargo/registry -v /tmp:/evidence sb-anchor:1.2.1 sh -c 'cp /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-loader-v3-interface-6.1.1/src/instruction.rs /evidence/sb006-loader-instruction.rs'; realpath .agents/skills/solana-production-readiness", "timeout": 30}
+
+## 2026-10-31T02:31:50.324Z toolResult bash
+/Users/tolushekoni/.local/share/soulbound-005-companion-55170579/skills/solana-production-readiness
+
+
+## 2026-10-31T02:31:53.839Z assistant
+TOOL read {"path": "/tmp/sb006-loader-instruction.rs", "offset": 1, "limit": 290}
+
+## 2026-10-31T02:31:53.856Z toolResult read
+//! Instructions for the upgradable BPF loader.
+
+#[cfg(feature = "bincode")]
+use {
+    crate::{get_program_data_address, state::UpgradeableLoaderState},
+    solana_instruction::{error::InstructionError, AccountMeta, Instruction},
+    solana_pubkey::Pubkey,
+    solana_sdk_ids::{bpf_loader_upgradeable::id, loader_v4, sysvar},
+    solana_system_interface::instruction as system_instruction,
+};
+
+/// Minimum number of bytes for an `ExtendProgram` instruction.
+///
+/// After the SIMD-0431 feature gate is activated, `ExtendProgram` will
+/// reject requests smaller than this value, unless the program data
+/// account is within this many bytes of the max permitted data length of
+/// an account: 10 MiB.
+pub const MINIMUM_EXTEND_PROGRAM_BYTES: u32 = 10_240;
+
+#[repr(u8)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_derive::Deserialize, serde_derive::Serialize)
+)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum UpgradeableLoaderInstruction {
+    /// Initialize a Buffer account.
+    ///
+    /// A Buffer account is an intermediary that once fully populated is used
+    /// with the `DeployWithMaxDataLen` instruction to populate the program's
+    /// ProgramData account.
+    ///
+    /// The `InitializeBuffer` instruction requires no signers and MUST be
+    /// included within the same Transaction as the system program's
+    /// `CreateAccount` instruction that creates the account being initialized.
+    /// Otherwise another party may initialize the account.
+    ///
+    /// # Account references
+    ///   0. `[writable]` source account to initialize.
+    ///   1. `[]` Buffer authority, optional, if omitted then the buffer will be
+    ///      immutable.
+    InitializeBuffer,
+
+    /// Write program data into a Buffer account.
+    ///
+    /// # Account references
+    ///   0. `[writable]` Buffer account to write program data to.
+    ///   1. `[signer]` Buffer authority
+    Write {
+        /// Offset at which to write the given bytes.
+        offset: u32,
+        /// Serialized program data
+        #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+        bytes: Vec<u8>,
+    },
+
+    /// Deploy an executable program.
+    ///
+    /// A program consists of a Program and ProgramData account pair.
+    ///   - The Program account's address will serve as the program id for any
+    ///     instructions that execute this program.
+    ///   - The ProgramData account will remain mutable by the loader only and
+    ///     holds the program data and authority information.  The ProgramData
+    ///     account's address is derived from the Program account's address and
+    ///     created by the DeployWithMaxDataLen instruction.
+    ///
+    /// The ProgramData address is derived from the Program account's address as
+    /// follows:
+    ///
+    /// ```
+    /// # use solana_pubkey::Pubkey;
+    /// # use solana_sdk_ids::bpf_loader_upgradeable;
+    /// # let program_address = &[];
+    /// let (program_data_address, _) = Pubkey::find_program_address(
+    ///      &[program_address],
+    ///      &bpf_loader_upgradeable::id()
+    ///  );
+    /// ```
+    ///
+    /// The `DeployWithMaxDataLen` instruction does not require the ProgramData
+    /// account be a signer and therefore MUST be included within the same
+    /// Transaction as the system program's `CreateAccount` instruction that
+    /// creates the Program account. Otherwise another party may initialize the
+    /// account.
+    ///
+    /// # Account references
+    ///   0. `[writable, signer]` The payer account that will pay to create the
+    ///      ProgramData account.
+    ///   1. `[writable]` The uninitialized ProgramData account.
+    ///   2. `[writable]` The uninitialized Program account.
+    ///   3. `[writable]` The Buffer account where the program data has been
+    ///      written.  The buffer account's authority must match the program's
+    ///      authority
+    ///   4. `[]` Rent sysvar.
+    ///   5. `[]` Clock sysvar.
+    ///   6. `[]` System program (`solana_sdk_ids::system_program::id()`).
+    ///   7. `[signer]` The program's authority
+    DeployWithMaxDataLen {
+        /// Maximum length that the program can be upgraded to.
+        max_data_len: usize,
+    },
+
+    /// Upgrade a program.
+    ///
+    /// A program can be updated as long as the program's authority has not been
+    /// set to `None`.
+    ///
+    /// The Buffer account must contain sufficient lamports to fund the
+    /// ProgramData account to be rent-exempt, any additional lamports left over
+    /// will be transferred to the spill account, leaving the Buffer account
+    /// balance at zero.
+    ///
+    /// # Account references
+    ///   0. `[writable]` The ProgramData account.
+    ///   1. `[writable]` The Program account.
+    ///   2. `[writable]` The Buffer account where the program data has been
+    ///      written.  The buffer account's authority must match the program's
+    ///      authority
+    ///   3. `[writable]` The spill account.
+    ///   4. `[]` Rent sysvar.
+    ///   5. `[]` Clock sysvar.
+    ///   6. `[signer]` The program's authority.
+    Upgrade,
+
+    /// Set a new authority that is allowed to write the buffer or upgrade the
+    /// program.  To permanently make the buffer immutable or disable program
+    /// updates omit the new authority.
+    ///
+    /// # Account references
+    ///   0. `[writable]` The Buffer or ProgramData account to change the
+    ///      authority of.
+    ///   1. `[signer]` The current authority.
+    ///   2. `[]` The new authority, optional, if omitted then the program will
+    ///      not be upgradeable.
+    SetAuthority,
+
+    /// Closes an account owned by the upgradeable loader of all lamports and
+    /// withdraws all the lamports
+    ///
+    /// # Account references
+    ///   0. `[writable]` The account to close, if closing a program must be the
+    ///      ProgramData account.
+    ///   1. `[writable]` The account to deposit the closed account's lamports.
+    ///   2. `[signer]` The account's authority, Optional, required for
+    ///      initialized accounts.
+    ///   3. `[writable]` The associated Program account if the account to close
+    ///      is a ProgramData account.
+    Close,
+
+    /// Extend a program's ProgramData account by the specified number of bytes.
+    /// Only upgradeable programs can be extended.
+    ///
+    /// After the SIMD-0431 feature gate is activated, `additional_bytes`
+    /// must be at least [`MINIMUM_EXTEND_PROGRAM_BYTES`] (10 KiB).
+    /// The minimum does not apply when the program data account is
+    /// within [`MINIMUM_EXTEND_PROGRAM_BYTES`] of the max permitted
+    /// data length of an account: 10 MiB.
+    ///
+    /// The payer account must contain sufficient lamports to fund the
+    /// ProgramData account to be rent-exempt. If the ProgramData account
+    /// balance is already sufficient to cover the rent exemption cost
+    /// for the extended bytes, the payer account is not required.
+    ///
+    /// # Account references
+    ///   0. `[writable]` The ProgramData account.
+    ///   1. `[writable]` The ProgramData account's associated Program account.
+    ///   2. `[]` System program (`solana_sdk::system_program::id()`), optional, used to transfer
+    ///      lamports from the payer to the ProgramData account.
+    ///   3. `[writable, signer]` The payer account, optional, that will pay
+    ///      necessary rent exemption costs for the increased storage size.
+    ExtendProgram {
+        /// Number of bytes to extend the program data.
+        additional_bytes: u32,
+    },
+
+    /// Set a new authority that is allowed to write the buffer or upgrade the
+    /// program.
+    ///
+    /// This instruction differs from SetAuthority in that the new authority is a
+    /// required signer.
+    ///
+    /// # Account references
+    ///   0. `[writable]` The Buffer or ProgramData account to change the
+    ///      authority of.
+    ///   1. `[signer]` The current authority.
+    ///   2. `[signer]` The new authority.
+    SetAuthorityChecked,
+
+    /// Migrate the program to loader-v4.
+    ///
+    /// # Account references
+    ///   0. `[writable]` The ProgramData account.
+    ///   1. `[writable]` The Program account.
+    ///   2. `[signer]` The current authority.
+    Migrate,
+
+    /// Extend a program's ProgramData account by the specified number of bytes.
+    /// Only upgradeable programs can be extended.
+    ///
+    /// This instruction differs from ExtendProgram in that the authority is a
+    /// required signer.
+    ///
+    /// # Account references
+    ///   0. `[writable]` The ProgramData account.
+    ///   1. `[writable]` The ProgramData account's associated Program account.
+    ///   2. `[signer]` The authority.
+    ///   3. `[]` System program (`solana_sdk::system_program::id()`), optional, used to transfer
+    ///      lamports from the payer to the ProgramData account.
+    ///   4. `[signer]` The payer account, optional, that will pay necessary rent exemption costs
+    ///      for the increased storage size.
+    ExtendProgramChecked {
+        /// Number of bytes to extend the program data.
+        additional_bytes: u32,
+    },
+}
+
+#[cfg(feature = "bincode")]
+/// Returns the instructions required to initialize a Buffer account.
+pub fn create_buffer(
+    payer_address: &Pubkey,
+    buffer_address: &Pubkey,
+    authority_address: &Pubkey,
+    lamports: u64,
+    program_len: usize,
+) -> Result<Vec<Instruction>, InstructionError> {
+    Ok(vec![
+        system_instruction::create_account(
+            payer_address,
+            buffer_address,
+            lamports,
+            UpgradeableLoaderState::size_of_buffer(program_len) as u64,
+            &id(),
+        ),
+        Instruction::new_with_bincode(
+            id(),
+            &UpgradeableLoaderInstruction::InitializeBuffer,
+            vec![
+                AccountMeta::new(*buffer_address, false),
+                AccountMeta::new_readonly(*authority_address, false),
+            ],
+        ),
+    ])
+}
+
+#[cfg(feature = "bincode")]
+/// Returns the instructions required to write a chunk of program data to a
+/// buffer account.
+pub fn write(
+    buffer_address: &Pubkey,
+    authority_address: &Pubkey,
+    offset: u32,
+    bytes: Vec<u8>,
+) -> Instruction {
+    Instruction::new_with_bincode(
+        id(),
+        &UpgradeableLoaderInstruction::Write { offset, bytes },
+        vec![
+            AccountMeta::new(*buffer_address, false),
+            AccountMeta::new_readonly(*authority_address, true),
+        ],
+    )
+}
+
+#[cfg(feature = "bincode")]
+/// Returns the instructions required to deploy a program with a specified
+/// maximum program length.  The maximum length must be large enough to
+/// accommodate any future upgrades.
+pub fn deploy_with_max_program_len(
+    payer_address: &Pubkey,
+    program_address: &Pubkey,
+    buffer_address: &Pubkey,
+    upgrade_authority_address: &Pubkey,
+    program_lamports: u64,
+    max_data_len: usize,
+) -> Result<Vec<Instruction>, InstructionError> {
+    let programdata_address = get_program_data_address(program_address);
+    Ok(vec![
+        system_instruction::create_account(
+            payer_address,
+            program_address,
+            program_lamports,
+            UpgradeableLoaderState::size_of_program() as u64,
+            &id(),
+        ),
+        Instruction::new_with_bincode(
+            id(),
+            &UpgradeableLoaderInstruction::DeployWithMaxDataLen { max_data_len },
+            vec![
+                AccountMeta::new(*payer_address, true),
+                AccountMeta::new(programdata_address, false),
+
+[365 more lines in file. Use offset=291 to continue.]
+
+## 2026-10-31T02:32:58.079Z assistant
+TOOL read {"path": "/Users/tolushekoni/.local/share/soulbound-005-companion-55170579/knowledge/production/stride-triton-production-readiness.md", "offset": 1, "limit": 350}
+
+## 2026-10-31T02:32:58.095Z toolResult read
+# STRIDE and Triton production readiness for Solana Rust
+
+Use this module when a homework program starts becoming a portfolio project, devnet demo, capstone, or mainnet candidate.
+
+## Core idea
+
+A Solana program is not production-ready just because the instruction code passes tests.
+Production readiness also includes governance, dependencies, release provenance, infrastructure, monitoring, incident response, logging, and transaction delivery.
+
+Primary sources:
+
+- STRIDE: https://stride.asymmetric.re/
+- STRIDE framework: https://stride.asymmetric.re/framework
+- STRIDE first findings: https://stride.asymmetric.re/first-findings
+- Triton One: https://triton.one/
+- Triton Solana docs: https://docs.triton.one/chains/solana
+
+## STRIDE-derived release checklist
+
+Score each item as `0 missing`, `1 ad hoc`, `2 documented`, or `3 proven`.
+
+### Program security
+
+- Internal review completed.
+- External audit or focused review exists when value at risk justifies it.
+- Vulnerability disclosure path exists.
+- `solana-security-txt` metadata is planned for public programs.
+- Fuzzing, property tests, static analysis, or formal methods are used where practical.
+- Defense-in-depth exists for dangerous operations.
+
+### Governance and authority
+
+- Upgrade authority is identified.
+- Admin roles are documented.
+- Timelock or multisig expectations are explicit.
+- Risk parameters and who can change them are listed.
+- Emergency powers have scope limits.
+
+### External dependencies
+
+- Oracle, CPI, Token-2022 hook, bridge, keeper, and off-chain dependencies are listed.
+- Each dependency has trust assumptions and failure modes.
+- Staleness/liveness checks exist where external data affects funds.
+- Blast radius is capped when a dependency fails or is compromised.
+
+### Infrastructure
+
+- RPC provider strategy is documented.
+- Rate limits and retry behavior are known.
+- Fallbacks are planned for production apps.
+- DNS, web app, API, and indexing services have owners.
+- Secrets never live in source control or shell history.
+
+### Supply chain and release
+
+- Lockfiles are committed.
+- Dependencies are pinned or reviewed.
+- Branch protection or review policy exists.
+- Releases are reproducible or at least documented.
+- Program binaries can be verified against source with `solana-verify` or equivalent when appropriate.
+- CI/CD secrets and deploy keys are scoped.
+
+### Operations, monitoring, and incident response
+
+- Large transfers are monitored.
+- Authority changes are monitored.
+- Upgrade authority changes are monitored.
+- Abnormal transaction patterns have alerts.
+- Circuit breaker or pause criteria are documented.
+- Incident runbooks name the first ten minutes, escalation path, evidence to preserve, recovery steps, and postmortem timeline.
+
+## Triton-derived transaction delivery checklist
+
+Use this for clients, bots, keepers, relayers, and production frontends.
+
+- Manage retries in the client instead of relying blindly on default RPC retries.
+- Use `maxRetries: 0` when the client owns retry behavior.
+- Simulate separately when simulation is needed.
+- Use `skipPreflight: true` only when the client already simulated or accepts that tradeoff.
+- Use confirmed or finalized blockhashes intentionally.
+- Set tight compute unit budgets instead of broad guesses.
+- Estimate priority fees from relevant writable account markets, not only network-wide minimums.
+- Implement rate-limit backoff.
+- Keep submission, confirmation, and retry telemetry.
+
+## When to teach this in homework
+
+For early homework, ask only three questions:
+
+1. What authority can move or upgrade funds?
+2. What must be monitored if this were deployed?
+3. What proof would convince a stranger this build matches the source?
+
+For capstone or portfolio work, require the full readiness checklist.
+
+
+## 2026-10-31T02:34:21.424Z assistant
+TOOL write {"path": "agent/dream/upgrade-program.ts", "content": "#!/usr/bin/env node\n// Ticket 006 operational executor: fixed approved seeded-buffer schedule ONLY.\n// No key generation; no authority rotation; no funding another wallet; no trait send.\nimport { readFile, open, rename, lstat, rm } from \"node:fs/promises\";\nimport { dirname, resolve } from \"node:path\";\nimport { pathToFileURL } from \"node:url\";\nimport { randomUUID } from \"node:crypto\";\nimport { parseArgs } from \"node:util\";\nimport assert from \"node:assert/strict\";\nimport { address, AccountRole as R, getAddressEncoder, createAddressWithSeed,\n  createTransactionMessage, setTransactionMessageFeePayer, setTransactionMessageLifetimeUsingBlockhash,\n  appendTransactionMessageInstruction, compileTransaction, getBase64EncodedWireTransaction,\n  createKeyPairSignerFromBytes, signTransaction, getSignatureFromTransaction, blockhash } from \"@solana/kit\";\nimport { DreamChain, PROGRAM_ID, DEVNET_GENESIS, SYSTEM_ID, sha256, u32, u64 } from \"./chain.ts\";\nimport { privateDirectory } from \"./journal.ts\";\nconst LOADER = \"BPFLoaderUpgradeab1e11111111111111111111111\";\nconst OWNER = \"CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1\";\nconst DATA = \"6YtN1z61nFydyyyqYTnP85VVFtkDhkM9baHe8HiN6TbD\";\nconst HASH = \"51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153\";\nconst OLD_HASH = \"15eef67ee87b8d87ffe669d3178c1d0319d458eea2ead3c59b3b04cc95b43d77\";\nconst BUFFER = \"FVTTXr9ffd9LBUaQDP8srecaeUZqppjfQQfCcqhAFLDf\";\nconst SEED = \"sb006-51997587fb67648b65ce0610b7\";\nconst RENT = 1479809080, EXTEND_RENT = 323047360, FEES = 1635000, PEAK = 1804491440;\nconst addr = (v: string) => Buffer.from(getAddressEncoder().encode(address(v)));\nconst meta = (key: string, role: R) => ({ address: address(key), role });\nconst instruction = (data: Uint8Array, accounts: ReturnType<typeof meta>[], program = LOADER) => ({ programAddress: address(program), accounts, data });\nexport function upgradeInstructions(binary: Buffer) {\n  assert.equal(binary.length, 291136); assert.equal(sha256(binary), HASH);\n  const seed = Buffer.from(SEED);\n  // System CreateAccountWithSeed: bincode enum u32, base, string(u64 len), lamports, space, owner.\n  const create = instruction(Buffer.concat([u32(3), addr(OWNER), u64(String(seed.length)), seed,\n    u64(String(RENT)), u64(String(binary.length + 37)), addr(LOADER)]),\n    [meta(OWNER, R.WRITABLE_SIGNER), meta(BUFFER, R.WRITABLE), meta(OWNER, R.READONLY_SIGNER)], SYSTEM_ID);\n  const initialize = instruction(u32(0), [meta(BUFFER, R.WRITABLE), meta(OWNER, R.READONLY)]);\n  const writes = Array.from({ length: Math.ceil(binary.length / 900) }, (_, n) => {\n    const offset = n * 900, chunk = binary.subarray(offset, offset + 900);\n    return { name: `write-${offset}`, instructions: [instruction(Buffer.concat([u32(1), u32(offset), u64(String(chunk.length)), chunk]),\n      [meta(BUFFER, R.WRITABLE), meta(OWNER, R.READONLY_SIGNER)])] };\n  });\n  const extend = instruction(Buffer.concat([u32(6), u32(63592)]), [meta(DATA, R.WRITABLE), meta(PROGRAM_ID, R.WRITABLE),\n    meta(SYSTEM_ID, R.READONLY), meta(OWNER, R.WRITABLE_SIGNER)]);\n  const upgrade = instruction(u32(3), [meta(DATA, R.WRITABLE), meta(PROGRAM_ID, R.WRITABLE), meta(BUFFER, R.WRITABLE),\n    meta(OWNER, R.WRITABLE), meta(\"SysvarRent111111111111111111111111111111111\", R.READONLY),\n    meta(\"SysvarC1ock11111111111111111111111111111111\", R.READONLY), meta(OWNER, R.READONLY_SIGNER)]);\n  return [{ name: \"create-initialize\", instructions: [create, initialize] }, ...writes,\n    { name: \"extend\", instructions: [extend] }, { name: \"upgrade\", instructions: [upgrade] }];\n}\nconst pause = (ms: number) => new Promise(r => setTimeout(r, ms));\nasync function save(path: string, data: unknown) {\n  const temp = `${path}.${randomUUID()}.tmp`, file = await open(temp, \"wx\", 0o600);\n  try { await file.writeFile(JSON.stringify(data)); await file.sync(); } finally { await file.close(); }\n  await rename(temp, path); const dir = await open(dirname(path), \"r\"); try { await dir.sync(); } finally { await dir.close(); }\n}\nexport async function main() {\n  const { values: v } = parseArgs({ options: { send: { type: \"boolean\" }, ledger: { type: \"string\" }, selfcheck: { type: \"boolean\" } }, strict: true });\n  const binary = await readFile(new URL(\"../../programs/soulbound/target/deploy/soulbound.so\", import.meta.url));\n  const steps = upgradeInstructions(binary);\n  assert.equal(await createAddressWithSeed({ baseAddress: address(OWNER), programAddress: address(LOADER), seed: SEED }), BUFFER);\n  assert.equal(steps.length, 327); assert.equal(steps[1].instructions[0].data.length, 916);\n  assert.equal(steps[324].instructions[0].data.length, 452); // final 436-byte chunk\n  const chain = new DreamChain(process.env.MEMORY_COMMIT_RPC_URL ?? \"https://api.devnet.solana.com\");\n  const publicChain = new DreamChain(\"https://api.devnet.solana.com\");\n  const rpc = chain.base.rpc.bind(chain.base);\n  const transaction = async (instructions: typeof steps[number][\"instructions\"]) => {\n    const latest = await rpc(\"getLatestBlockhash\", [{ commitment: \"confirmed\" }]) as any;\n    let message = setTransactionMessageLifetimeUsingBlockhash({ blockhash: blockhash(latest.value.blockhash), lastValidBlockHeight: BigInt(latest.value.lastValidBlockHeight) },\n      setTransactionMessageFeePayer(address(OWNER), createTransactionMessage({ version: 0 })));\n    for (const ix of instructions) message = appendTransactionMessageInstruction(ix, message);\n    const tx = compileTransaction(message), wire = getBase64EncodedWireTransaction(tx);\n    assert.ok(Buffer.from(wire, \"base64\").length <= 1232); assert.equal(Object.keys(tx.signatures).length, 1);\n    return { tx, wire, lastValidBlockHeight: latest.value.lastValidBlockHeight };\n  };\n  if (v.selfcheck) {\n    // Actual binary, exact deterministic address, packet/signature checks, no key file reads or sends.\n    for (const step of [steps[0], steps[1], steps[324], steps[325], steps[326]]) await transaction(step.instructions);\n    console.log(JSON.stringify({ state: \"upgrade-encoding-selfcheck-passed\", steps: steps.length, binarySHA256: HASH })); return;\n  }\n  if (!v.ledger) throw new Error(\"private ledger required\");\n  await privateDirectory(dirname(v.ledger));\n  const lock = await open(`${v.ledger}.lock`, \"wx\", 0o600);\n  let phase = \"preflight\";\n  try {\n    await lock.writeFile(JSON.stringify({ pid: process.pid })); await lock.sync();\n    let journal: any;\n    try {\n      const info = await lstat(v.ledger); assert.ok(info.isFile() && !(info.mode & 0o077));\n      journal = JSON.parse(await readFile(v.ledger, \"utf8\"));\n      assert.equal(journal.schema, 1); assert.equal(journal.binarySHA256, HASH); assert.equal(journal.program, PROGRAM_ID);\n    } catch (e) { if ((e as NodeJS.ErrnoException).code !== \"ENOENT\") throw e; }\n    const account = async (key: string) => {\n      const a = await publicChain.account(key); if (!a) return null;\n      return { ...a, bytes: Buffer.from(a.data[0], \"base64\") };\n    };\n    const programState = async () => {\n      const p = await account(PROGRAM_ID), d = await account(DATA);\n      assert.ok(p?.executable && p.owner === LOADER && p.bytes.equals(Buffer.concat([u32(2), addr(DATA)])));\n      assert.ok(d && !d.executable && d.owner === LOADER && d.bytes.readUInt32LE() === 3 && d.bytes[12] === 1 && d.bytes.subarray(13, 45).equals(addr(OWNER)));\n      return d!;\n    };\n    const snapshotKeys = [PROGRAM_ID, \"74dRYy2RARkhQs963QcGZdVXhfjABm2BGC7WFwSd7Ehc\", \"BVF8KRRGK6CV55GaQd4KdJFhYtrKX1GekFdoVpn1AY6p\",\n      \"8ra3ckcmgWRhFyWBiCz6KPLM76hugAYhjeEzZCxc8fHU\", \"KTDQzSUUiT62zdRPceSgzteo5VcfkCfya2otLGCS6YZ\", \"45GjZKzknQuHoNNRA8XpamEdPn9ZcjnYqwcbnMA7X5W9\"];\n    const snapshot = async () => {\n      const values: any = {};\n      for (const key of snapshotKeys) {\n        const a = await account(key); assert.ok(a);\n        values[key] = { owner: a!.owner, lamports: a!.lamports, executable: a!.executable, dataHash: sha256(a!.bytes) };\n      }\n      return values;\n    };\n    assert.equal(await rpc(\"getGenesisHash\"), DEVNET_GENESIS);\n    assert.equal(await publicChain.base.rpc(\"getGenesisHash\"), DEVNET_GENESIS);\n    const before = await programState();\n    if (before.bytes.length === 291181 && sha256(before.bytes.subarray(45)) === HASH) {\n      assert.ok(journal); assert.deepEqual(await snapshot(), journal.before);\n      assert.equal(await account(BUFFER), null);\n      console.log(JSON.stringify({ state: \"upgrade-readback-confirmed\", signature: journal.steps.upgrade?.signature, binarySHA256: HASH, assetsUnchanged: true })); return;\n    }\n    assert.ok([227589, 291181].includes(before.bytes.length));\n    assert.equal(sha256(before.bytes.subarray(45, 227589)), OLD_HASH);\n    if (before.bytes.length > 227589) assert.ok(before.bytes.subarray(227589).every(b => b === 0));\n    const buffer = await account(BUFFER);\n    if (!journal) {\n      assert.equal(buffer, null); assert.equal(before.bytes.length, 227589);\n      assert.equal(await rpc(\"getMinimumBalanceForRentExemption\", [291173]), RENT);\n      assert.equal((await rpc(\"getMinimumBalanceForRentExemption\", [291181]) as number) - before.lamports, EXTEND_RENT);\n      const balance = (await rpc(\"getBalance\", [OWNER, { commitment: \"confirmed\" }]) as any).value;\n      assert.ok(balance >= PEAK);\n      journal = { schema: 1, program: PROGRAM_ID, binarySHA256: HASH, authority: OWNER, buffer: BUFFER,\n        approvedBy: \"Tolu\", approvalSource: \"Chat: approve plans proceed\", approvalScope: \"Exact fixed seeded-buffer upgrade only; no trait send/funding/authority change\",\n        approvedPeakLamports: PEAK, approvedFeeLamports: FEES, beforeBalanceLamports: balance, before: await snapshot(), steps: {} };\n      if (v.send) await save(v.ledger, journal);\n    } else if (buffer) {\n      assert.equal(buffer.owner, LOADER); assert.equal(buffer.bytes.length, 291173);\n      assert.ok(buffer.bytes.subarray(0, 37).equals(Buffer.concat([u32(1), Buffer.from([1]), addr(OWNER)])));\n    }\n    const simulate = async (tx: Awaited<ReturnType<typeof transaction>>) => {\n      const r = await rpc(\"simulateTransaction\", [tx.wire, { encoding: \"base64\", sigVerify: false, replaceRecentBlockhash: true, commitment: \"confirmed\" }]) as any;\n      if (r.value.err) throw new Error(`simulation failed ${JSON.stringify(r.value.err)}`);\n      const fee = (await rpc(\"getFeeForMessage\", [Buffer.from(tx.tx.messageBytes).toString(\"base64\"), { commitment: \"confirmed\" }]) as any).value;\n      assert.equal(fee, 5000); return { units: r.value.unitsConsumed, fee };\n    };\n    if (!v.send) {\n      assert.equal(buffer, null);\n      const create = await simulate(await transaction(steps[0].instructions));\n      const extend = await simulate(await transaction(steps[325].instructions));\n      console.log(JSON.stringify({ state: \"upgrade-dry-run\", create, extend, steps: steps.length, approvedPeakLamports: PEAK, binarySHA256: HASH })); return;\n    }\n    const keyFile = process.env.MEMORY_COMMIT_FEE_PAYER_KEY_FILE;\n    assert.ok(keyFile); const info = await lstat(keyFile); assert.ok(info.isFile() && !(info.mode & 0o077));\n    const secret = JSON.parse(await readFile(keyFile, \"utf8\"));\n    assert.ok(Array.isArray(secret) && secret.length === 64 && secret.every(n => Number.isInteger(n) && n >= 0 && n <= 255));\n    const signer = await createKeyPairSignerFromBytes(Uint8Array.from(secret)); assert.equal(signer.address, OWNER);\n    const confirm = async (signature: string) => {\n      for (let n = 0; n < 60; n++) {\n        const status = await chain.status(signature);\n        if (status === \"confirmed\") return;\n        if (status === \"error\") throw new Error(\"transaction failed; operator review required\");\n        await pause(500);\n      }\n      throw new Error(\"pending or absent; reconcile ledger, never automatically re-sign\");\n    };\n    for (const [index, step] of steps.entries()) {\n      phase = step.name;\n      if (step.name === \"upgrade\") {\n        const b = await account(BUFFER); assert.ok(b && sha256(b.bytes.subarray(37)) === HASH);\n        assert.deepEqual(await snapshot(), journal.before);\n      }\n      const old = journal.steps[step.name];\n      if (old) {\n        assert.ok(typeof old.signature === \"string\" && /^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(old.signature));\n        await confirm(old.signature); // Never sign/resend a ledgered attempt, even if expired.\n      } else {\n        assert.ok(Object.keys(journal.steps).length < 327);\n        const tx = await transaction(step.instructions); const estimate = await simulate(tx);\n        const signed = await signTransaction([signer.keyPair], tx.tx);\n        const submission = { signature: getSignatureFromTransaction(signed), wire: getBase64EncodedWireTransaction(signed), lastValidBlockHeight: tx.lastValidBlockHeight };\n        journal.steps[step.name] = { ...submission, state: \"pending\", feeLamports: estimate.fee };\n        await save(v.ledger, journal); // signed signature/wire durable BEFORE single network send\n        try { await chain.broadcast(submission); } catch { /* ambiguous: confirmation only, never a blind retry */ }\n        await confirm(submission.signature);\n      }\n      journal.steps[step.name].state = \"confirmed\"; await save(v.ledger, journal);\n      if (step.name.startsWith(\"write-\")) {\n        const offset = Number(step.name.slice(6)), length = Math.min(900, binary.length - offset);\n        // Read back each uploaded slice without dumping the binary or private RPC URL.\n        const response = await publicChain.base.rpc(\"getAccountInfo\", [BUFFER, { encoding: \"base64\", commitment: \"confirmed\", dataSlice: { offset: 37 + offset, length } }]) as any;\n        assert.ok(response.value && Buffer.from(response.value.data[0], \"base64\").equals(binary.subarray(offset, offset + length)));\n      }\n      console.log(JSON.stringify({ state: \"upgrade-step-confirmed\", index: index + 1, total: steps.length, action: step.name, signature: journal.steps[step.name].signature }));\n    }\n    const after = await programState(); assert.equal(after.bytes.length, 291181); assert.equal(sha256(after.bytes.subarray(45)), HASH);\n    assert.deepEqual(await snapshot(), journal.before); assert.equal(await account(BUFFER), null);\n    journal.afterBalanceLamports = (await rpc(\"getBalance\", [OWNER, { commitment: \"confirmed\" }]) as any).value;\n    assert.equal(journal.beforeBalanceLamports - journal.afterBalanceLamports, EXTEND_RENT + FEES);\n    journal.state = \"confirmed\"; await save(v.ledger, journal);\n    console.log(JSON.stringify({ state: \"upgrade-confirmed\", signature: journal.steps.upgrade.signature, binarySHA256: HASH,\n      assetsUnchanged: true, permanentCostLamports: EXTEND_RENT + FEES, bufferClosed: true }));\n  } catch (e) {\n    const reason = e instanceof Error && (e.message.startsWith(\"simulation failed\") || e.message.startsWith(\"pending or absent\") || e.message.startsWith(\"transaction failed\")) ? e.message : \"precondition/key/transport mismatch; private details suppressed\";\n    throw new Error(`upgrade stopped at ${phase}: ${reason}`);\n  } finally { await lock.close(); await rm(`${v.ledger}.lock`, { force: true }); }\n}\nif (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(e => { console.error(e.message); process.exitCode = 1; });\n"}
+
+## 2026-10-31T02:34:21.453Z toolResult write
+Successfully wrote to agent/dream/upgrade-program.ts
+
+## 2026-10-31T02:34:43.405Z assistant
+TOOL bash {"command": "node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" agent/dream/upgrade-program.ts --selfcheck > audit/006-dream-cycle/pi-upgrade-encoding-check.log 2>&1; echo \"encoding check exit=$?\"; node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" agent/dream/upgrade-program.ts --ledger \"$HOME/.config/soulbound/ticket-006/upgrade.json\" > audit/006-dream-cycle/pi-upgrade-approved-dry-run.log 2>&1; echo \"upgrade dry-run exit=$?\"; (cd agent && ./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --allowJs --skipLibCheck dream/*.ts)", "timeout": 120}
+
+## 2026-10-31T02:34:48.518Z toolResult bash
+encoding check exit=0
+upgrade dry-run exit=0
+dream/upgrade-program.ts(68,36): error TS2322: Type 'Omit<ExcludeTransactionMessageWithinSizeLimit<Omit<Omit<EmptyTransactionMessage<0>, "feePayer"> & TransactionMessageWithFeePayer<"CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1">, "lifetimeConstraint"> & TransactionMessageWithBlockhashLifetime>, "instructions"> & { ...; }' is not assignable to type 'Omit<Omit<EmptyTransactionMessage<0>, "feePayer"> & TransactionMessageWithFeePayer<"CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1">, "lifetimeConstraint"> & TransactionMessageWithBlockhashLifetime'.
+  Property '"__transactionSize:@solana/kit"' is missing in type 'Omit<ExcludeTransactionMessageWithinSizeLimit<Omit<Omit<EmptyTransactionMessage<0>, "feePayer"> & TransactionMessageWithFeePayer<"CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1">, "lifetimeConstraint"> & TransactionMessageWithBlockhashLifetime>, "instructions"> & { ...; }' but required in type 'Omit<Omit<EmptyTransactionMessage<0>, "feePayer"> & TransactionMessageWithFeePayer<"CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1">, "lifetimeConstraint">'.
+
+
+Command exited with code 2
+
+## 2026-10-31T02:34:54.208Z assistant
+TOOL edit {"path": "agent/dream/upgrade-program.ts", "edits": [{"oldText": "appendTransactionMessageInstruction, compileTransaction,", "newText": "appendTransactionMessageInstructions, compileTransaction,"}, {"oldText": "    let message = setTransactionMessageLifetimeUsingBlockhash({ blockhash: blockhash(latest.value.blockhash), lastValidBlockHeight: BigInt(latest.value.lastValidBlockHeight) },\n      setTransactionMessageFeePayer(address(OWNER), createTransactionMessage({ version: 0 })));\n    for (const ix of instructions) message = appendTransactionMessageInstruction(ix, message);", "newText": "    const message = appendTransactionMessageInstructions(instructions,\n      setTransactionMessageLifetimeUsingBlockhash({ blockhash: blockhash(latest.value.blockhash), lastValidBlockHeight: BigInt(latest.value.lastValidBlockHeight) },\n        setTransactionMessageFeePayer(address(OWNER), createTransactionMessage({ version: 0 }))));"}]}
+
+## 2026-10-31T02:34:54.221Z toolResult edit
+Successfully replaced 2 block(s) in agent/dream/upgrade-program.ts.
+
+## 2026-10-31T02:34:58.189Z assistant
+TOOL codemode {"code": "for(const p of [\"audit/006-dream-cycle/pi-upgrade-encoding-check.log\",\"audit/006-dream-cycle/pi-upgrade-approved-dry-run.log\"])text(await tools.read({path:p}));\ntext(await tools.bash({command:\"cd agent && ./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --allowJs --skipLibCheck dream/*.ts\",\"timeout\":60}));\n"}
+
+## 2026-10-31T02:35:00.169Z toolResult codemode
+Script completed
+Wall time 2.0 seconds
+Output:
+
+==> text 1/3 <==
+{"state":"upgrade-encoding-selfcheck-passed","steps":327,"binarySHA256":"51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153"}
+==> text 2/3 <==
+{"state":"upgrade-dry-run","create":{"units":2520,"fee":5000},"extend":{"units":2520,"fee":5000},"steps":327,"approvedPeakLamports":1804491440,"binarySHA256":"51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153"}
+==> text 3/3 <==
+{"output":"","truncated":false,"exit_code":0,"wall_time_seconds":1.9}
+
+## 2026-10-31T02:35:43.931Z assistant
+TOOL edit {"path": "agent/dream/upgrade-program.ts", "edits": [{"oldText": "        const response = await publicChain.base.rpc(\"getAccountInfo\", [BUFFER, { encoding: \"base64\", commitment: \"confirmed\", dataSlice: { offset: 37 + offset, length } }]) as any;\n        assert.ok(response.value && Buffer.from(response.value.data[0], \"base64\").equals(binary.subarray(offset, offset + length)));", "newText": "        let matches = false;\n        for (let attempt = 0; attempt < 10; attempt++) {\n          const response = await publicChain.base.rpc(\"getAccountInfo\", [BUFFER, { encoding: \"base64\", commitment: \"confirmed\", dataSlice: { offset: 37 + offset, length } }]) as any;\n          matches = !!response.value && Buffer.from(response.value.data[0], \"base64\").equals(binary.subarray(offset, offset + length));\n          if (matches) break;\n          await pause(500); // read-only cross-provider lag tolerance, never resubmit a transaction\n        }\n        assert.ok(matches, \"uploaded slice did not read back\");"}]}
+
+## 2026-10-31T02:35:43.937Z toolResult edit
+Successfully replaced 1 block(s) in agent/dream/upgrade-program.ts.
+
+## 2026-10-31T02:36:05.534Z assistant
+The refreshed preflight still matches the approved binary and cost limits. Unsigned simulations passed for buffer creation and the 63,592-byte extension. I’m starting the fixed 327-transaction upgrade sequence now; signatures will be journaled before each send, with no automatic re-signing on ambiguous results.
+
+
+TOOL bash {"command": "(node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" agent/dream/upgrade-program.ts --ledger \"$HOME/.config/soulbound/ticket-006/upgrade.json\" --send > audit/006-dream-cycle/pi-approved-upgrade-execution.log 2>&1; rc=$?; printf 'approved upgrade executor exit=%s\\n' \"$rc\" > audit/006-dream-cycle/pi-approved-upgrade-exit.txt) </dev/null >/dev/null 2>&1 & echo \"upgrade executor pid=$!\"", "timeout": 10}
+
+## 2026-10-31T02:36:05.609Z toolResult bash
+upgrade executor pid=60752
+
+
+## 2026-10-31T02:36:27.720Z assistant
+TOOL codemode {"code": "text(await tools.read({path:\"audit/006-dream-cycle/pi-approved-upgrade-execution.log\",offset:1,limit:15}));\ntext(await tools.bash({command:\"find . -maxdepth 3 -type f -name '.env*' -not -path './node_modules/*' -not -path './.git/*'; test ! -e audit/006-dream-cycle/pi-approved-upgrade-exit.txt || true; ps -p 60752 -o pid=,etime=,stat=\",\"timeout\":30}));\n"}
+
+## 2026-10-31T02:36:27.832Z toolResult codemode
+Script completed
+Wall time 0.1 seconds
+Output:
+
+==> text 1/2 <==
+{"state":"upgrade-step-confirmed","index":1,"total":327,"action":"create-initialize","signature":"3k18BKaZY5QkpU8zdVMsjjXZ1LnnR7Tdb7mbqL2UKVXKEeH8VX6Jmp2drpPsPvRo2Nosk2yyN8jLZ3v5WErEdM2k"}
+{"state":"upgrade-step-confirmed","index":2,"total":327,"action":"write-0","signature":"jnMTryQnswS6BP3r3onkrzV42TUbd6WQLnH1ePLixXcEqrfuLVxKFNmsZwusKtxvRcdtv6UaybSW5jbAA9zguZD"}
+{"state":"upgrade-step-confirmed","index":3,"total":327,"action":"write-900","signature":"4ZyiJizdzBLAMDEBoTh4H2yP3MEjwbYy2NwrXGprnXFvEsK4fR2RQYRRoJFW6pV4JM2p8D6GeDceWo6dQUddFjqF"}
+upgrade stopped at write-1800: precondition/key/transport mismatch; private details suppressed
+==> text 2/2 <==
+{"output":"./app/.env.local\n./agent/.env\n./agent/.env.example\n./.env.example\n","truncated":false,"exit_code":1,"wall_time_seconds":0}
+
+## 2026-10-31T02:36:53.704Z assistant
+TOOL bash {"command": "node --input-type=module -e 'import{readFile}from\"node:fs/promises\";import{join}from\"node:path\";const j=JSON.parse(await readFile(join(process.env.HOME,\".config/soulbound/ticket-006/upgrade.json\"),\"utf8\"));console.log(JSON.stringify({ledgerSteps:Object.entries(j.steps).map(([action,s])=>({action,state:s.state,signature:s.signature})),binarySHA256:j.binarySHA256}));'; node --input-type=module -e 'for(const f of [\"agent/.env\",\"app/.env.local\"]){try{process.loadEnvFile(f)}catch{}}console.log(JSON.stringify({MODEL_API_KEY:!!process.env.MODEL_API_KEY,BASETEN_API_KEY:!!process.env.BASETEN_API_KEY,META_API_KEY:!!process.env.META_API_KEY}));'", "timeout": 30}
+
+## 2026-10-31T02:36:53.829Z toolResult bash
+{"ledgerSteps":[{"action":"create-initialize","state":"confirmed","signature":"3k18BKaZY5QkpU8zdVMsjjXZ1LnnR7Tdb7mbqL2UKVXKEeH8VX6Jmp2drpPsPvRo2Nosk2yyN8jLZ3v5WErEdM2k"},{"action":"write-0","state":"confirmed","signature":"jnMTryQnswS6BP3r3onkrzV42TUbd6WQLnH1ePLixXcEqrfuLVxKFNmsZwusKtxvRcdtv6UaybSW5jbAA9zguZD"},{"action":"write-900","state":"confirmed","signature":"4ZyiJizdzBLAMDEBoTh4H2yP3MEjwbYy2NwrXGprnXFvEsK4fR2RQYRRoJFW6pV4JM2p8D6GeDceWo6dQUddFjqF"},{"action":"write-1800","state":"pending","signature":"5aD4b71Gwj7QKyZhvgKmmshW3KiDfTncyxcxgMH3Zq53mdmczqqoJxKwG1AS1joF3bspq7L28FMhep6emjqUkv3x"}],"binarySHA256":"51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153"}
+{"MODEL_API_KEY":false,"BASETEN_API_KEY":false,"META_API_KEY":true}
+
+
+## 2026-10-31T02:37:03.516Z assistant
+TOOL bash {"command": "node --input-type=module -e 'import{DreamChain}from\"./agent/dream/chain.ts\";const sig=\"5aD4b71Gwj7QKyZhvgKmmshW3KiDfTncyxcxgMH3Zq53mdmczqqoJxKwG1AS1joF3bspq7L28FMhep6emjqUkv3x\";console.log(JSON.stringify({signature:sig,status:await new DreamChain(\"https://api.devnet.solana.com\").status(sig)}));'", "timeout": 30}
+
+## 2026-10-31T02:37:04.096Z toolResult bash
+{"signature":"5aD4b71Gwj7QKyZhvgKmmshW3KiDfTncyxcxgMH3Zq53mdmczqqoJxKwG1AS1joF3bspq7L28FMhep6emjqUkv3x","status":"confirmed"}
+
+
+## 2026-10-31T02:37:37.292Z assistant
+The uploader stopped while confirming the fourth transaction and did not retry it. Public devnet readback confirms that signature succeeded. I’ll resume from the ledger without re-signing those four transactions; the program has not yet been upgraded.
+
+
+TOOL edit {"path": "agent/dream/upgrade-program.ts", "edits": [{"oldText": "        const status = await chain.status(signature);", "newText": "        let status: string;\n        try { status = await chain.status(signature); }\n        catch { status = await publicChain.status(signature); } // independent read fallback, never retry a send"}, {"oldText": "      console.log(JSON.stringify({ state: \"upgrade-step-confirmed\", index: index + 1, total: steps.length, action: step.name, signature: journal.steps[step.name].signature }));", "newText": "      console.log(JSON.stringify({ state: \"upgrade-step-confirmed\", index: index + 1, total: steps.length, action: step.name, signature: journal.steps[step.name].signature }));\n      await pause(250); // bound operator RPC pressure; fees and approved transaction schedule unchanged"}, {"oldText": "e.message.startsWith(\"transaction failed\"))", "newText": "e.message.startsWith(\"transaction failed\") || /^RPC [A-Za-z]+ failed/.test(e.message)))"}]}
+
+## 2026-10-31T02:37:37.307Z toolResult edit
+Successfully replaced 3 block(s) in agent/dream/upgrade-program.ts.
+
+## 2026-10-31T02:37:45.106Z assistant
+TOOL read {"path": "agent/dream/upgrade-program.ts", "offset": 205, "limit": 18}
+
+## 2026-10-31T02:37:45.113Z toolResult read
+    console.log(JSON.stringify({ state: "upgrade-confirmed", signature: journal.steps.upgrade.signature, binarySHA256: HASH,
+      assetsUnchanged: true, permanentCostLamports: EXTEND_RENT + FEES, bufferClosed: true }));
+  } catch (e) {
+    const reason = e instanceof Error && (e.message.startsWith("simulation failed") || e.message.startsWith("pending or absent") || e.message.startsWith("transaction failed") || /^RPC [A-Za-z]+ failed/.test(e.message))) ? e.message : "precondition/key/transport mismatch; private details suppressed";
+    throw new Error(`upgrade stopped at ${phase}: ${reason}`);
+  } finally { await lock.close(); await rm(`${v.ledger}.lock`, { force: true }); }
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(e => { console.error(e.message); process.exitCode = 1; });
+
+
+## 2026-10-31T02:37:48.209Z assistant
+TOOL edit {"path": "agent/dream/upgrade-program.ts", "edits": [{"oldText": ".test(e.message))) ?", "newText": ".test(e.message)) ?"}]}
+
+## 2026-10-31T02:37:48.217Z toolResult edit
+Successfully replaced 1 block(s) in agent/dream/upgrade-program.ts.
+
+## 2026-10-31T02:37:51.600Z assistant
+TOOL bash {"command": "(cd agent && ./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --allowJs --skipLibCheck dream/*.ts) && (node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" --env-file=\"$HOME/.config/soulbound/ticket-005/quicknode-v2.env\" agent/dream/upgrade-program.ts --ledger \"$HOME/.config/soulbound/ticket-006/upgrade.json\" --send > audit/006-dream-cycle/pi-approved-upgrade-resume.log 2>&1; rc=$?; printf 'approved upgrade resume exit=%s\\n' \"$rc\" > audit/006-dream-cycle/pi-approved-upgrade-resume-exit.txt) </dev/null >/dev/null 2>&1 & echo \"checked resume pid=$!\"", "timeout": 10}
+
+## 2026-10-31T02:37:51.716Z toolResult bash
+checked resume pid=61466
+
+
+## 2026-10-31T02:38:30.881Z assistant
+TOOL codemode {"code": "text(await tools.read({path:\"audit/006-dream-cycle/pi-approved-upgrade-resume.log\",offset:1,limit:12}));\ntext(await tools.bash({command:\"ps -p 61466 -o pid=,etime=,stat=; wc -l audit/006-dream-cycle/pi-approved-upgrade-resume.log; test ! -e audit/006-dream-cycle/pi-approved-upgrade-resume-exit.txt || true\",\"timeout\":30}));\n"}
+
+## 2026-10-31T02:38:30.987Z toolResult codemode
+Script completed
+Wall time 0.1 seconds
+Output:
+
+==> text 1/2 <==
+{"state":"upgrade-step-confirmed","index":1,"total":327,"action":"create-initialize","signature":"3k18BKaZY5QkpU8zdVMsjjXZ1LnnR7Tdb7mbqL2UKVXKEeH8VX6Jmp2drpPsPvRo2Nosk2yyN8jLZ3v5WErEdM2k"}
+{"state":"upgrade-step-confirmed","index":2,"total":327,"action":"write-0","signature":"jnMTryQnswS6BP3r3onkrzV42TUbd6WQLnH1ePLixXcEqrfuLVxKFNmsZwusKtxvRcdtv6UaybSW5jbAA9zguZD"}
+{"state":"upgrade-step-confirmed","index":3,"total":327,"action":"write-900","signature":"4ZyiJizdzBLAMDEBoTh4H2yP3MEjwbYy2NwrXGprnXFvEsK4fR2RQYRRoJFW6pV4JM2p8D6GeDceWo6dQUddFjqF"}
+{"state":"upgrade-step-confirmed","index":4,"total":327,"action":"write-1800","signature":"5aD4b71Gwj7QKyZhvgKmmshW3KiDfTncyxcxgMH3Zq53mdmczqqoJxKwG1AS1joF3bspq7L28FMhep6emjqUkv3x"}
+{"state":"upgrade-step-confirmed","index":5,"total":327,"action":"write-2700","signature":"eiu78TcJVdQaiEuWJmJ6XGpjEKW4MbaupQ3jiyNUqcj6NYK8xVK6S7CSf13d9UaYAv3fmGiSNM96Rt5ysDvZZKg"}
+{"state":"upgrade-step-confirmed","index":6,"total":327,"action":"write-3600","signature":"3ahsLFL53k1k7HMKb6jDBoDhsN9ZAoapBYJw9wE15SHMxRoKyHYgmnFUj5bcfyhc2nyWzadt2mmUcCRGqvDrXu6H"}
+{"state":"upgrade-step-confirmed","index":7,"total":327,"action":"write-4500","signature":"5Kr7XpUHKgVRvihmT33G67r6szS9GKAvHevDMCBrmkaJA2u1XZVf1JfystmEvG7MZYZCU5ELSNBf8Sz98QSTGF25"}
+{"state":"upgrade-step-confirmed","index":8,"total":327,"action":"write-5400","signature":"4YbyJv52HTBcydW9usQMZELc9YFHtHRxev8pHxTW9DqcSFU18WiXxRTP8MjApLcoC7p7KirqjW3GwvxKn9JmZisL"}
+{"state":"upgrade-step-confirmed","index":9,"total":327,"action":"write-6300","signature":"2jksJ7Yh49WxrWVgC6GDZ96ncAoS7h6CsXM9z7Ym6oYepeRjooYV7BEbGQeR6eDXRPj28oc2mQKUb67rp5ELKzJ"}
+{"state":"upgrade-step-confirmed","index":10,"total":327,"action":"write-7200","signature":"2e79PE2duf8KLGt1yEbcYviJX2Wk9p1g3kGHfXhv1ByXk14VaCtN8uPgaFi4uXk9vmuGL1QUmWp9uN47aEMQUvMi"}
+{"state":"upgrade-step-confirmed","index":11,"total":327,"action":"write-8100","signature":"2BKTeSpP3yZezK5PWC8XFEkgCo5qJRqi7mKyuZEhe363YMj7WnjnKcCAQ32sGCLNfrQQZFF4NDKzRKvHXsscix9a"}
+{"state":"upgrade-step-confirmed","index":12,"total":327,"action":"write-9000","signature":"4bTrHDzhUGNNQGePS53QmqfAbd7h4o398YjmjL8m4Mgh7LzeQ54ntgYdxKKt5PMcg293EoRbggtBirYQFR3qX8hK"}
+
+[12 more lines in file. Use offset=13 to continue.]
+==> text 2/2 <==
+{"output":"61466 00:39 S   \n      23 audit/006-dream-cycle/pi-approved-upgrade-resume.log\n","truncated":false,"exit_code":0,"wall_time_seconds":0}
+
+## 2026-10-31T02:39:14.267Z assistant
+TOOL edit {"path": "agent/dream/upgrade-program.ts", "edits": [{"oldText": "  const extend = instruction(Buffer.concat([u32(6), u32(63592)]), [meta(DATA, R.WRITABLE), meta(PROGRAM_ID, R.WRITABLE),\n    meta(SYSTEM_ID, R.READONLY), meta(OWNER, R.WRITABLE_SIGNER)]);", "newText": "  // Authority-checked extension binds the quoted upgrade authority on chain as well as the payer.\n  const extend = instruction(Buffer.concat([u32(9), u32(63592)]), [meta(DATA, R.WRITABLE), meta(PROGRAM_ID, R.WRITABLE),\n    meta(OWNER, R.READONLY_SIGNER), meta(SYSTEM_ID, R.READONLY), meta(OWNER, R.WRITABLE_SIGNER)]);"}, {"oldText": "    console.log(JSON.stringify({ state: \"upgrade-encoding-selfcheck-passed\", steps: steps.length, binarySHA256: HASH })); return;", "newText": "    const extend = await transaction(steps[325].instructions);\n    const simulation = await rpc(\"simulateTransaction\", [extend.wire, { encoding: \"base64\", sigVerify: false, replaceRecentBlockhash: true, commitment: \"confirmed\" }]) as any;\n    assert.equal(simulation.value.err, null);\n    console.log(JSON.stringify({ state: \"upgrade-encoding-selfcheck-passed\", steps: steps.length, binarySHA256: HASH, checkedExtensionSimulationUnits: simulation.value.unitsConsumed })); return;"}, {"oldText": "      if (step.name === \"upgrade\") {\n        const b", "newText": "      if (step.name === \"extend\" || step.name === \"upgrade\") {\n        const current = await programState();\n        assert.equal(sha256(current.bytes.subarray(45, 227589)), OLD_HASH);\n      }\n      if (step.name === \"upgrade\") {\n        const b"}]}
+
+## 2026-10-31T02:39:14.276Z toolResult edit
+Successfully replaced 3 block(s) in agent/dream/upgrade-program.ts.
+
+## 2026-10-31T02:39:17.214Z assistant
+TOOL bash {"command": "node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" --env-file=\"$HOME/.config/soulbound/ticket-005/quicknode-v2.env\" agent/dream/upgrade-program.ts --selfcheck > audit/006-dream-cycle/pi-upgrade-checked-extension-selfcheck.log 2>&1; echo \"checked extension encoding/simulation exit=$?\"", "timeout": 60}
+
+## 2026-10-31T02:39:18.155Z toolResult bash
+checked extension encoding/simulation exit=1
+
+
+## 2026-10-31T02:39:23.019Z assistant
+TOOL read {"path": "audit/006-dream-cycle/pi-upgrade-checked-extension-selfcheck.log", "offset": null, "limit": null}
+
+## 2026-10-31T02:39:23.027Z toolResult read
+Expected values to be strictly equal:
++ actual - expected
+
++ {
++   InstructionError: [
++     0,
++     'InvalidInstructionData'
++   ]
++ }
+- null
+
+
+
+## 2026-10-31T02:39:44.446Z assistant
+TOOL edit {"path": "agent/dream/upgrade-program.ts", "edits": [{"oldText": "  // Authority-checked extension binds the quoted upgrade authority on chain as well as the payer.\n  const extend = instruction(Buffer.concat([u32(9), u32(63592)]), [meta(DATA, R.WRITABLE), meta(PROGRAM_ID, R.WRITABLE),\n    meta(OWNER, R.READONLY_SIGNER), meta(SYSTEM_ID, R.READONLY), meta(OWNER, R.WRITABLE_SIGNER)]);", "newText": "  // Devnet rejected ExtendProgramChecked (9) in unsigned simulation; use supported ExtendProgram (6).\n  // Recheck the authority immediately before this step; upgrade itself requires its signature.\n  const extend = instruction(Buffer.concat([u32(6), u32(63592)]), [meta(DATA, R.WRITABLE), meta(PROGRAM_ID, R.WRITABLE),\n    meta(SYSTEM_ID, R.READONLY), meta(OWNER, R.WRITABLE_SIGNER)]);"}, {"oldText": "checkedExtensionSimulationUnits: simulation.value.unitsConsumed", "newText": "extensionSimulationUnits: simulation.value.unitsConsumed"}]}
+
+## 2026-10-31T02:39:44.467Z toolResult edit
+Successfully replaced 2 block(s) in agent/dream/upgrade-program.ts.
+
+## 2026-10-31T02:39:50.385Z assistant
+TOOL codemode {"code": "text(await tools.bash({command:\"wc -l audit/006-dream-cycle/pi-approved-upgrade-resume.log; ps -p 61466 -o pid=,etime=,stat=; node --env-file=\\\"$HOME/.config/soulbound/ticket-005/operator.env\\\" --env-file=\\\"$HOME/.config/soulbound/ticket-005/quicknode-v2.env\\\" agent/dream/upgrade-program.ts --selfcheck > audit/006-dream-cycle/pi-upgrade-supported-extension-selfcheck.log 2>&1; echo \\\"supported extension selfcheck exit=$?\\\"\",\"timeout\":60}));\ntext(await tools.read({path:\"audit/006-dream-cycle/pi-approved-upgrade-resume.log\",offset:40,limit:5}));\n"}
+
+## 2026-10-31T02:39:51.375Z toolResult codemode
+Script completed
+Wall time 1.0 seconds
+Output:
+
+==> text 1/2 <==
+{"output":"      75 audit/006-dream-cycle/pi-approved-upgrade-resume.log\n61466 01:59 S   \nsupported extension selfcheck exit=0\n","truncated":false,"exit_code":0,"wall_time_seconds":0.9}
+==> text 2/2 <==
+{"state":"upgrade-step-confirmed","index":40,"total":327,"action":"write-34200","signature":"5RdVhvZWYvHUbt4yBuyVNvGVu7qibRzaBoGAbs1SRoeb3Az4VW62zuEv4oC3Cdw3F7vWrkNTJ8EvThbagc9xAdDk"}
+{"state":"upgrade-step-confirmed","index":41,"total":327,"action":"write-35100","signature":"2mPMVvKLVLrq252NoJUXryZDhAUeGYeFAgaFCvn4KCw6esoLfJ7P7L95zaruJTGLjrPP4CVbwTZVRD8jmwXg4s4r"}
+{"state":"upgrade-step-confirmed","index":42,"total":327,"action":"write-36000","signature":"4VjJKDqzNNd6F8nWfMhwFkRUDCtia8nde99RRTwioqFREc4rHjTd9nVjPydD9Yeott3g6Gnpm61yTp9c2pxadniW"}
+{"state":"upgrade-step-confirmed","index":43,"total":327,"action":"write-36900","signature":"2csLo8F1xPJd1dyCbG9Qt58QgFy3TVuHfD3oeeUvg2EFrmvcKWnE7XpccWW124PZf288R85tE7FJW9xRXb8qhAxg"}
+{"state":"upgrade-step-confirmed","index":44,"total":327,"action":"write-37800","signature":"3mysVdToymw2uiSAB3hsRRHrqyytYbSPx2yx9Hzg4nTR4R69Hdh6YDrzuXabYptLMgfQRgffgkyzAKu5YYYQ9vZ7"}
+
+[32 more lines in file. Use offset=45 to continue.]
+
+## 2026-10-31T02:41:58.519Z assistant
+TOOL codemode {"code": "text(await Promise.allSettled([\ntools.bash({command:\"node --test agent/dream/dream.test.ts > audit/006-dream-cycle/pi-post-approval-client-tests.log 2>&1; echo \\\"client regression exit=$?\\\"\",timeout:60}),\ntools.bash({command:\"(cd agent && ./node_modules/.bin/tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --allowJs --skipLibCheck dream/*.ts) > audit/006-dream-cycle/pi-upgrade-executor-typecheck.txt 2>&1; rc=$?; printf 'strict typecheck exit=%s\\\\n' \\\"$rc\\\" >> audit/006-dream-cycle/pi-upgrade-executor-typecheck.txt; exit \\\"$rc\\\"\",timeout:60})\n]));\ntext(await tools.bash({command:\"wc -l audit/006-dream-cycle/pi-approved-upgrade-resume.log; ps -p 61466 -o pid=,etime=,stat=; git status --short -- agent/dream programs/soulbound docs/dreams.md\",\"timeout\":30}));\n"}
+
+## 2026-10-31T02:42:00.893Z toolResult codemode
+Script completed
+Wall time 2.4 seconds
+Output:
+
+==> text 1/2 <==
+[{"status":"fulfilled","value":{"output":"client regression exit=0\n","truncated":false,"exit_code":0,"wall_time_seconds":0.8}},{"status":"fulfilled","value":{"output":"","truncated":false,"exit_code":0,"wall_time_seconds":2.3}}]
+==> text 2/2 <==
+{"output":"     154 audit/006-dream-cycle/pi-approved-upgrade-resume.log\n61466 04:09 S   \n?? agent/dream/upgrade-program.ts\n","truncated":false,"exit_code":0,"wall_time_seconds":0}
+
+## 2026-10-31T02:42:23.759Z assistant
+TOOL bash {"command": "node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" --input-type=module -e 'import {readMemoryGraph} from \"./agent/dream/run-once.ts\";const ns={ownerId:process.env.MEMORY_OWNER_ID,characterId:process.env.MEMORY_CHARACTER_ID};const records=await readMemoryGraph(process.env.MEMORY_STORE_PATH,ns);console.log(JSON.stringify({state:\"read-only-dream-input-preflight\",characterId:ns.characterId,memoryCount:records.length,MODEL_API_KEYConfigured:!!process.env.MODEL_API_KEY,BASETEN_API_KEYConfigured:!!process.env.BASETEN_API_KEY,liveModelCalls:0,sourceStoreModified:false}));' > audit/006-dream-cycle/pi-live-dream-input-preflight.json 2> audit/006-dream-cycle/pi-live-dream-input-preflight-error.log; echo \"private memory preflight exit=$?\"; wc -l audit/006-dream-cycle/pi-approved-upgrade-resume.log", "timeout": 30}
+
+## 2026-10-31T02:42:24.115Z toolResult bash
+private memory preflight exit=0
+     168 audit/006-dream-cycle/pi-approved-upgrade-resume.log
+
+
+## 2026-10-31T02:43:44.539Z assistant
+TOOL bash {"command": "sleep 45; wc -l audit/006-dream-cycle/pi-approved-upgrade-resume.log; ps -p 61466 -o pid=,etime=,stat=; if test -e audit/006-dream-cycle/pi-approved-upgrade-resume-exit.txt; then printf 'executor exit receipt exists\\n'; fi", "timeout": 60}
+
+## 2026-10-31T02:44:29.590Z toolResult bash
+     246 audit/006-dream-cycle/pi-approved-upgrade-resume.log
+61466 06:38 S
+
+
+## 2026-10-31T02:45:26.776Z assistant
+TOOL codemode {"code": "const log=await tools.read({path:\"audit/006-dream-cycle/pi-approved-upgrade-resume.log\"});const lines=log.trim().split(\"\\n\");text(lines.slice(-2).join(\"\\n\"));\ntext(await tools.read({path:\"audit/006-dream-cycle/pi-live-dream-input-preflight.json\"}));\ntext(await tools.bash({command:\"git diff --check -- agent/dream docs/dreams.md programs/soulbound; ps -p 61466 -o pid=,etime=,stat=\",\"timeout\":30}));\n"}
+
+## 2026-10-31T02:45:26.867Z toolResult codemode
+Script completed
+Wall time 0.1 seconds
+Output:
+
+==> text 1/3 <==
+
+[Showing lines 1-276 of 281 (50.0KB limit). Use offset=277 to continue.]
+==> text 2/3 <==
+{"state":"read-only-dream-input-preflight","characterId":"895354","memoryCount":2,"MODEL_API_KEYConfigured":false,"BASETEN_API_KEYConfigured":false,"liveModelCalls":0,"sourceStoreModified":false}
+==> text 3/3 <==
+{"output":"61466 07:35 S   \n","truncated":false,"exit_code":0,"wall_time_seconds":0}
+
+## 2026-10-31T02:46:50.117Z assistant
+TOOL bash {"command": "sleep 55; wc -l audit/006-dream-cycle/pi-approved-upgrade-resume.log; ps -p 61466 -o pid=,etime=,stat=; if test -e audit/006-dream-cycle/pi-approved-upgrade-resume-exit.txt; then printf 'executor exit receipt exists\\n'; fi", "timeout": 70}
+
+## 2026-10-31T02:47:45.165Z toolResult bash
+     328 audit/006-dream-cycle/pi-approved-upgrade-resume.log
+executor exit receipt exists
+
+
+## 2026-10-31T02:47:50.235Z assistant
+TOOL codemode {"code": "text(await tools.read({path:\"audit/006-dream-cycle/pi-approved-upgrade-resume.log\",offset:324,limit:15}));\ntext(await tools.read({path:\"audit/006-dream-cycle/pi-approved-upgrade-resume-exit.txt\"}));\n"}
+
+## 2026-10-31T02:47:50.320Z toolResult codemode
+Script completed
+Wall time 0.1 seconds
+Output:
+
+==> text 1/2 <==
+{"state":"upgrade-step-confirmed","index":324,"total":327,"action":"write-289800","signature":"5MZy5KiFdKSRFXArYpDW4d98CqLBBbhxnatP2rgpBVejFkevDuxg9nCbYbQPrsuxSCXhavZ1DeiXx7KuoHaTDpKq"}
+{"state":"upgrade-step-confirmed","index":325,"total":327,"action":"write-290700","signature":"ZtnycNJJc57S8P3qpvpb5icbBNVXqd8r1XFWVtgN8pEPSn7gDohJjs5ThCup9xpMqyGhuFeLWs8ZJgLZZkxJHHk"}
+{"state":"upgrade-step-confirmed","index":326,"total":327,"action":"extend","signature":"4VcGTfqmhS52hjqj2gFKqckLNphqZfnYB65XoZRbATofmkbxi9RgUHWCpYHGc5ntXnuKevVXLSbRXe8xWfMaTHcw"}
+{"state":"upgrade-step-confirmed","index":327,"total":327,"action":"upgrade","signature":"52hNDwy9FjZt8Nbk9JrS5EmTjJjD4HrBfmzFjW6Th94vQ4QH7VPv111cG3K8jvXWTBYCBbQ6xrcA4KRQMefAiyPx"}
+{"state":"upgrade-confirmed","signature":"52hNDwy9FjZt8Nbk9JrS5EmTjJjD4HrBfmzFjW6Th94vQ4QH7VPv111cG3K8jvXWTBYCBbQ6xrcA4KRQMefAiyPx","binarySHA256":"51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153","assetsUnchanged":true,"permanentCostLamports":324682360,"bufferClosed":true}
+==> text 2/2 <==
+approved upgrade resume exit=0
+
+
+## 2026-10-31T02:48:36.640Z assistant
+The upgrade completed: the deployed hash matches the approved binary, the buffer is closed, and config/assets/receipt/history are unchanged. I’m checking finalized readback now. The next phase is blocked: the private environment has neither `MODEL_API_KEY` nor `BASETEN_API_KEY` configured. No live model call or trait transaction has been made.
+
+
+TOOL bash {"command": "cd agent && node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" --env-file=\"$HOME/.config/soulbound/ticket-005/quicknode-v2.env\" --input-type=module > ../audit/006-dream-cycle/pi-approved-upgrade-finalized-readback.json 2> ../audit/006-dream-cycle/pi-approved-upgrade-readback-error.log <<'JS'\nimport assert from 'node:assert/strict';\nimport {readFile} from 'node:fs/promises';\nimport {join} from 'node:path';\nimport {DreamChain,PROGRAM_ID,sha256} from './dream/chain.ts';\nconst ledger=JSON.parse(await readFile(join(process.env.HOME,'.config/soulbound/ticket-006/upgrade.json'),'utf8'));\nconst live=new DreamChain(process.env.MEMORY_COMMIT_RPC_URL), pub=new DreamChain('https://api.devnet.solana.com');\nconst signature=ledger.steps.upgrade.signature;\nconst getTx=async(sig)=>{\n for(let n=0;n<30;n++){\n  let r;try{r=await live.base.rpc('getTransaction',[sig,{encoding:'json',commitment:'finalized',maxSupportedTransactionVersion:0}]);}\n  catch{r=await pub.base.rpc('getTransaction',[sig,{encoding:'json',commitment:'finalized',maxSupportedTransactionVersion:0}]);}\n  if(r){assert.equal(r.meta.err,null);return r;}\n  await new Promise(r=>setTimeout(r,1000));\n }\n throw Error('finalized transaction not available');\n};\nconst upgrade=await getTx(signature), extension=await getTx(ledger.steps.extend.signature), creation=await getTx(ledger.steps['create-initialize'].signature);\nconst account=await pub.account('6YtN1z61nFydyyyqYTnP85VVFtkDhkM9baHe8HiN6TbD');assert.ok(account);\nconst bytes=Buffer.from(account.data[0],'base64'),binary=await readFile('./../programs/soulbound/target/deploy/soulbound.so');\nassert.equal(bytes.length,291181);assert.equal(sha256(bytes.subarray(45)),sha256(binary));assert.equal(sha256(binary),ledger.binarySHA256);\nassert.equal(Number(bytes.readBigUInt64LE(4)),upgrade.slot);\nconst after={};for(const key of Object.keys(ledger.before)){const a=await pub.account(key);assert.ok(a);after[key]={owner:a.owner,lamports:a.lamports,executable:a.executable,dataHash:sha256(Buffer.from(a.data[0],'base64'))};}\nassert.deepEqual(after,ledger.before);assert.equal(await pub.account(ledger.buffer),null);\nconst history=await pub.base.rpc('getSignaturesForAddress',[ledger.buffer,{limit:1000,commitment:'finalized'}]);\nassert.equal(history.length,326);assert.ok(history.every(x=>x.err===null));\nconst expected=new Set(Object.entries(ledger.steps).filter(([name])=>name!=='extend').map(([,s])=>s.signature));\nassert.deepEqual(new Set(history.map(x=>x.signature)),expected);\nconst balance=(await pub.base.rpc('getBalance',[ledger.authority,{commitment:'finalized'}])).value;\nassert.equal(ledger.beforeBalanceLamports-balance,324682360);\nconst feeQuotes=Object.values(ledger.steps).reduce((n,s)=>n+s.feeLamports,0);assert.equal(feeQuotes,1635000);\nassert.equal(upgrade.meta.fee,5000);assert.equal(extension.meta.fee,5000);assert.equal(creation.meta.fee,5000);\nconsole.log(JSON.stringify({state:'approved-upgrade-finalized-cross-provider-readback',observedAt:new Date().toISOString(),program:PROGRAM_ID,sourceCommit:'23add43',upgradeSignature:signature,upgradeSlot:upgrade.slot,explorer:`https://explorer.solana.com/tx/${signature}?cluster=devnet`,extensionSignature:ledger.steps.extend.signature,creationSignature:ledger.steps['create-initialize'].signature,binaryBytes:binary.length,binarySHA256:sha256(binary),programDataBytes:bytes.length,programDataLamports:account.lamports,upgradeAuthority:ledger.authority,successfulTransactionCount:Object.keys(ledger.steps).length,bufferHistoryTransactionCount:history.length,bufferClosed:true,assetsConfigReceiptHistoryUnchanged:true,transactionFeesLamports:feeQuotes,feeBasis:'Exact signed-message quotes; create/extend/upgrade actual meta.fee cross-checked; aggregate reconciled to finalized payer delta minus rent',additionalProgramRentLamports:323047360,refundedBufferDepositLamports:1479809080,permanentCostLamports:324682360,payerBeforeLamports:ledger.beforeBalanceLamports,payerAfterLamports:balance,traitTransactionsBroadcast:0,modelCalls:0},null,2));\nJS\nrc=$?; echo \"finalized readback exit=$rc\"; exit \"$rc\"", "timeout": 120}
+
+## 2026-10-31T02:48:38.643Z toolResult bash
+finalized readback exit=0
+
+
+## 2026-10-31T02:49:07.764Z assistant
+TOOL bash {"command": "cd agent && node --env-file=\"$HOME/.config/soulbound/ticket-005/operator.env\" --env-file=\"$HOME/.config/soulbound/ticket-005/quicknode-v2.env\" --input-type=module > ../audit/006-dream-cycle/pi-live-authorization-simulations.json 2> ../audit/006-dream-cycle/pi-live-authorization-simulations-error.log <<'JS'\nimport assert from 'node:assert/strict';\nimport{address,AccountRole as R,createTransactionMessage,setTransactionMessageFeePayer,setTransactionMessageLifetimeUsingBlockhash,appendTransactionMessageInstruction,compileTransaction,getBase64EncodedWireTransaction,blockhash}from'@solana/kit';\nimport{DreamChain,traitInstruction,dreamAddress,CORE_ID,SYSTEM_ID}from'./dream/chain.ts';\nconst chain=new DreamChain(process.env.MEMORY_COMMIT_RPC_URL),owner=process.env.MEMORY_OWNER_ID;\nconst before=await chain.snapshot({ownerId:owner,characterId:process.env.MEMORY_CHARACTER_ID},process.env.MEMORY_COMMIT_RUNTIME_PUBLIC_KEY,process.env.MEMORY_COMMIT_FEE_PAYER);\nconst attrs=before.attributes.map(a=>({...a,value:a.key==='mood'?'unauthorized-probe':a.value}));\nconst unauthorized=traitInstruction({...before,runtime:owner,journalHash:'1'.repeat(64),newAttributes:attrs},await dreamAddress(before.config));\nconst a=(key,role)=>({address:address(key),role});\nconst direct={programAddress:address(CORE_ID),accounts:[a(before.asset,R.WRITABLE),a(CORE_ID,R.READONLY),a(owner,R.WRITABLE_SIGNER),a(owner,R.READONLY_SIGNER),a(SYSTEM_ID,R.READONLY),a(CORE_ID,R.READONLY)],data:Buffer.concat([Buffer.from([6,6]),unauthorized.data.subarray(48)])};\nconst simulate=async(ix)=>{const l=await chain.base.rpc('getLatestBlockhash',[{commitment:'confirmed'}]);const tx=compileTransaction(appendTransactionMessageInstruction(ix,setTransactionMessageLifetimeUsingBlockhash({blockhash:blockhash(l.value.blockhash),lastValidBlockHeight:BigInt(l.value.lastValidBlockHeight)},setTransactionMessageFeePayer(address(owner),createTransactionMessage({version:0})))));return(await chain.base.rpc('simulateTransaction',[getBase64EncodedWireTransaction(tx),{encoding:'base64',sigVerify:false,replaceRecentBlockhash:true,commitment:'confirmed'}])).value;};\nconst program=await simulate(unauthorized),core=await simulate(direct);\nassert.deepEqual(program.err,{InstructionError:[0,{Custom:6009}]});assert.deepEqual(core.err,{InstructionError:[0,{Custom:26}]});\nconst after=await chain.inspect(before);assert.deepEqual(before,after);\nconsole.log(JSON.stringify({state:'unsigned-negative-authorization-simulations-only',observedAt:new Date().toISOString(),ownerEvolveRejected:program.err,ownerDirectCoreUpdateRejected:core.err,programUnits:program.unitsConsumed,coreUnits:core.unitsConsumed,snapshotUnchanged:true,provenanceRevision:after.revision,traitTransactionsSigned:0,traitTransactionsBroadcast:0,dummyJournalHashUsedOnlyForRejectionProbe:true,modelCalls:0},null,2));\nJS\nrc=$?; echo \"live negative authorization simulations exit=$rc\"; exit \"$rc\"", "timeout": 60}
+
+## 2026-10-31T02:49:08.952Z toolResult bash
+live negative authorization simulations exit=0
+
+
+## 2026-10-31T02:50:34.097Z assistant
+TOOL edit {"path": "docs/dreams.md", "edits": [{"oldText": "or imply a fixture changed devnet. No live PASS is claimed by these files.", "newText": "or imply a fixture changed devnet. No live trait-evolution PASS is claimed.\n\n## Approved upgrade receipt — finalized 2026-10-31\n\nTolu approved the presented plan in chat (`approve plans proceed`). This approval\nwas applied to the exact upgrade schedule only, not an unspecified first trait\ntransaction, wallet funding or authority rotation. Program source basis: `23add43`.\nThe Mac-only operational executor is `agent/dream/upgrade-program.ts`: fixed binary,\npublic identities, seeded buffer, 900-byte writes, fee/rent caps, durable signatures\nbefore sends, and ledger reconciliation without blind re-signing. No keygen or\nprogram-keypair use. Only the existing owner/payer key was used on the Mac.\n\n- Upgrade: `52hNDwy9FjZt8Nbk9JrS5EmTjJjD4HrBfmzFjW6Th94vQ4QH7VPv111cG3K8jvXWTBYCBbQ6xrcA4KRQMefAiyPx`.\n- [Actual upgrade transaction](https://explorer.solana.com/tx/52hNDwy9FjZt8Nbk9JrS5EmTjJjD4HrBfmzFjW6Th94vQ4QH7VPv111cG3K8jvXWTBYCBbQ6xrcA4KRQMefAiyPx?cluster=devnet).\n- Executable bytes: **291,136**; SHA-256\n  `51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153`.\n- Same program ID, ProgramData address and upgrade authority. Config, Core asset,\n  receipt mint/ATA and memory history match their before-upgrade hashes/metadata.\n- **327 successful transactions**: create+initialize, 324 writes, extension, upgrade.\n  The finalized buffer-address history has exactly the expected 326 signatures\n  (extension touches ProgramData, not the buffer), with no errors or duplicate sends.\n- Buffer deposit **1.479809080 SOL** refunded; buffer is closed. Additional program\n  rent **0.323047360 SOL**; fees **0.001635000 SOL**; permanent payer decrease\n  **0.324682360 SOL**. Final payer balance **3.474732280 SOL**. Aggregate fees\n  reconcile signed-message quotes with the finalized payer/rent delta; actual\n  create/extend/upgrade metadata fees were separately checked at 5,000 lamports each.\n- The first run paused during confirmation of write offset 1800. Public readback\n  proved its journaled signature confirmed; the resumed run reused the ledger,\n  did not re-sign those transactions, and completed the same approved 327 steps.\n  A second existing private RPC configuration plus bounded read fallback was used.\n- Unsigned probe of `ExtendProgramChecked` (variant 9) returned\n  `InvalidInstructionData`; supported variant 6 simulated successfully and was\n  used. This probe broadcast nothing and charged no fee.\n\nProof: `audit/006-dream-cycle/pi-approved-upgrade-finalized-readback.json`, execution\nlogs and `pi-live-authorization-simulations.json`. These are doer observations,\nnot an independent acceptance review. Against the upgraded program, **unsigned\nnegative simulations only** reject owner `evolve_traits` with 6009 and direct Core\nowner mutation with 26; the snapshot remains unchanged. The dummy journal hash in\nthose rejection probes is not a real dream or submitted transaction.\n\nRemaining blocker: existing private operator configuration has neither\n`MODEL_API_KEY` nor `BASETEN_API_KEY` set. A read-only input check found **2 validated\nreal memory references**; their content was not exported or sent to any model.\n**No live model call, installed cron, real dream journal or trait transaction is\nclaimed.** Supply the private configuration reference (never paste keys in chat),\nthen generate the real Meta journal, capture an actual scheduled fire, simulate\nits exact trait intent and obtain separate approval before the first trait send."}]}
+
+## 2026-10-31T02:50:34.122Z toolResult edit
+Successfully replaced 1 block(s) in docs/dreams.md.
+
+## 2026-10-31T02:50:46.524Z assistant
+TOOL codemode {"code": "text(await tools.read({path:\"audit/006-dream-cycle/pi-approved-upgrade-finalized-readback.json\"}));\ntext(await tools.read({path:\"audit/006-dream-cycle/pi-live-authorization-simulations.json\"}));\ntext(await tools.bash({command:\"git diff --check -- agent/dream docs/dreams.md programs/soulbound; git status --short; git diff --numstat -- programs/soulbound\",\"timeout\":30}));\n"}
+
+## 2026-10-31T02:50:46.620Z toolResult codemode
+Script completed
+Wall time 0.1 seconds
+Output:
+
+==> text 1/3 <==
+{
+  "state": "approved-upgrade-finalized-cross-provider-readback",
+  "observedAt": "2026-10-31T02:48:38.626Z",
+  "program": "BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd",
+  "sourceCommit": "23add43",
+  "upgradeSignature": "52hNDwy9FjZt8Nbk9JrS5EmTjJjD4HrBfmzFjW6Th94vQ4QH7VPv111cG3K8jvXWTBYCBbQ6xrcA4KRQMefAiyPx",
+  "upgradeSlot": 516989234,
+  "explorer": "https://explorer.solana.com/tx/52hNDwy9FjZt8Nbk9JrS5EmTjJjD4HrBfmzFjW6Th94vQ4QH7VPv111cG3K8jvXWTBYCBbQ6xrcA4KRQMefAiyPx?cluster=devnet",
+  "extensionSignature": "4VcGTfqmhS52hjqj2gFKqckLNphqZfnYB65XoZRbATofmkbxi9RgUHWCpYHGc5ntXnuKevVXLSbRXe8xWfMaTHcw",
+  "creationSignature": "3k18BKaZY5QkpU8zdVMsjjXZ1LnnR7Tdb7mbqL2UKVXKEeH8VX6Jmp2drpPsPvRo2Nosk2yyN8jLZ3v5WErEdM2k",
+  "binaryBytes": 291136,
+  "binarySHA256": "51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153",
+  "programDataBytes": 291181,
+  "programDataLamports": 1479849720,
+  "upgradeAuthority": "CdvYdEJUk4gxXhz53v7SAKggzfyKx5ho85uRhhvnMKs1",
+  "successfulTransactionCount": 327,
+  "bufferHistoryTransactionCount": 326,
+  "bufferClosed": true,
+  "assetsConfigReceiptHistoryUnchanged": true,
+  "transactionFeesLamports": 1635000,
+  "feeBasis": "Exact signed-message quotes; create/extend/upgrade actual meta.fee cross-checked; aggregate reconciled to finalized payer delta minus rent",
+  "additionalProgramRentLamports": 323047360,
+  "refundedBufferDepositLamports": 1479809080,
+  "permanentCostLamports": 324682360,
+  "payerBeforeLamports": 3799414640,
+  "payerAfterLamports": 3474732280,
+  "traitTransactionsBroadcast": 0,
+  "modelCalls": 0
+}
+==> text 2/3 <==
+{
+  "state": "unsigned-negative-authorization-simulations-only",
+  "observedAt": "2026-10-31T02:49:08.928Z",
+  "ownerEvolveRejected": {
+    "InstructionError": [
+      0,
+      {
+        "Custom": 6009
+      }
+    ]
+  },
+  "ownerDirectCoreUpdateRejected": {
+    "InstructionError": [
+      0,
+      {
+        "Custom": 26
+      }
+    ]
+  },
+  "programUnits": 14163,
+  "coreUnits": 12750,
+  "snapshotUnchanged": true,
+  "provenanceRevision": "0",
+  "traitTransactionsSigned": 0,
+  "traitTransactionsBroadcast": 0,
+  "dummyJournalHashUsedOnlyForRejectionProbe": true,
+  "modelCalls": 0
+}
+==> text 3/3 <==
+{"output":" M docs/dreams.md\n?? .agents/skills/akash-tenant/\n?? .atskills/\n?? .backpassrc.json\n?? agent/dream/upgrade-program.ts\n?? audit/006-dream-cycle/pi-approved-upgrade-exit.txt\n?? audit/006-dream-cycle/pi-approved-upgrade-finalized-readback.json\n?? audit/006-dream-cycle/pi-approved-upgrade-resume-exit.txt\n?? audit/006-dream-cycle/pi-live-authorization-simulations.json\n?? audit/006-dream-cycle/pi-live-dream-input-preflight.json\n?? audit/006-dream-cycle/pi-upgrade-executor-typecheck.txt\n?? docs/gtm/\n?? docs/memory-comparison-research-plan.md\n?? tickets/021-recall-into-conversation.md\n","truncated":false,"exit_code":0,"wall_time_seconds":0}
+
+## 2026-10-31T02:51:11.569Z assistant
+TOOL bash {"command": "python3 - <<'PY'\nimport json,os,re\nparts=['# Ticket 006 — approved upgrade execution transcript\\nBegins at Tolu\\'s upgrade-plan approval. Text and tool calls/results retained; reasoning blocks omitted. Credential-shaped strings redacted. Upgrade receipts are real; negative trait probes are unsigned simulations only.\\n']\nstarted=False\nwith open(os.environ['PI_SESSION_FILE']) as f:\n for line in f:\n  e=json.loads(line)\n  if e.get('type')!='message':continue\n  m=e.get('message',{});role=m.get('role','');content=m.get('content',[])\n  if isinstance(content,str):content=[{'type':'text','text':content}]\n  if role=='user' and any(b.get('type')=='text' and b.get('text','').strip()=='approve plans proceed' for b in content):started=True\n  if not started or role not in ('user','assistant','toolResult'):continue\n  out=[]\n  for b in content:\n   if b.get('type')=='text':out.append(b.get('text',''))\n   elif b.get('type')=='toolCall':out.append('TOOL '+b.get('name','')+' '+json.dumps(b.get('arguments',{}),ensure_ascii=False))\n  if out:parts.append(('\\n## '+e.get('timestamp','')+' '+role+' '+m.get('toolName','')).rstrip()+'\\n'+'\\n'.join(out))\nassert started\ntext='\\n'.join(parts)\ntext=re.sub(r'LLM\\|[^\\s\\\"\\'`]+','[REDACTED_META_KEY_SHAPE]',text)\ntext=re.sub(r'\\b(?:sk|rk|sk-proj)-[A-Za-z0-9_-]{16,}','[REDACTED_KEY_SHAPE]',text)\np='audit/006-dream-cycle/pi-approved-upgrade-session.log'\nwith open(p,'x') as f:f.write(text+'\\n')\nos.chmod(p,0o600)\nprint('Approved-phase redacted transcript exported:',len(text.encode()),'bytes')\nPY\nrg -l 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|LLM\\|[0-9]+\\|[A-Za-z0-9]{15,}|sk-[A-Za-z0-9]{20,}' agent/dream/upgrade-program.ts audit/006-dream-cycle/pi-approved-upgrade-session.log || true\ngit diff --check -- agent/dream docs/dreams.md programs/soulbound", "timeout": 30}

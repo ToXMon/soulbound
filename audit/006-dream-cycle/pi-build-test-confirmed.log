@@ -1,0 +1,103 @@
+[2026-10-31T00:54:21.298165472Z WARN  cargo_build_sbf] Package 'soulbound' has two crate types defined: cdylib and lib. This setting precludes link-time optimizations (LTO). Use cdylib for programs to be deployed and rlib for packages to be imported by other programs as libraries.
+    Finished `release` profile [optimized] target(s) in 1.88s
+   Compiling serde_core v1.0.229
+   Compiling serde v1.0.229
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v0.7.5+spec-1.1.0
+   Compiling serde_json v1.0.154
+   Compiling solana-short-vec v3.3.0
+   Compiling serde_bytes v0.11.19
+   Compiling toml v0.9.12+spec-1.1.0
+   Compiling toml v0.5.11
+   Compiling anchor-lang-idl-spec v0.1.0
+   Compiling solana-hash v4.6.0
+   Compiling solana-program-error v3.0.1
+   Compiling curve25519-dalek v4.1.3
+   Compiling bincode v1.3.3
+   Compiling solana-sha256-hasher v3.1.0
+   Compiling solana-instruction-error v2.5.0
+   Compiling solana-fee-calculator v3.3.0
+   Compiling solana-transaction-error v3.4.0
+   Compiling cargo_toml v0.22.3
+   Compiling bv v0.11.1
+   Compiling solana-program-pack v3.1.0
+   Compiling spl-discriminator v0.5.2
+   Compiling solana-address v2.7.0
+   Compiling proc-macro-crate v0.1.5
+   Compiling solana-curve25519 v3.1.14
+   Compiling anchor-lang-idl v0.1.4
+   Compiling solana-hash v3.1.0
+   Compiling solana-keccak-hasher v3.1.0
+   Compiling solana-pubkey v4.3.0
+   Compiling solana-sdk-ids v3.1.0
+   Compiling solana-instruction v4.0.0
+   Compiling solana-address v1.1.0
+   Compiling solana-get-sysvar v1.0.0
+   Compiling solana-account-info v3.1.1
+   Compiling solana-pubkey v3.0.0
+   Compiling solana-sysvar-id v3.1.0
+   Compiling anchor-syn v1.2.1
+   Compiling solana-serialize-utils v3.1.2
+   Compiling solana-instruction v3.5.1
+   Compiling solana-clock v4.0.0
+   Compiling solana-slot-hashes v3.2.0
+   Compiling solana-program-entrypoint v3.1.1
+   Compiling solana-epoch-rewards v3.2.0
+   Compiling solana-rent v3.1.0
+   Compiling solana-epoch-schedule v3.3.0
+   Compiling solana-clock v3.2.1
+   Compiling solana-slot-history v3.2.0
+   Compiling solana-last-restart-slot v3.2.0
+   Compiling solana-signer v3.0.1
+   Compiling solana-instructions-sysvar v3.0.1
+   Compiling solana-system-interface v2.0.0
+   Compiling solana-cpi v3.1.0
+   Compiling solana-stable-layout v3.0.1
+   Compiling solana-sysvar v3.1.1
+   Compiling solana-address-lookup-table-interface v3.2.0
+   Compiling solana-system-interface v3.3.0
+   Compiling solana-zk-sdk v4.0.0
+   Compiling solana-message v3.1.0
+   Compiling spl-type-length-value v0.9.1
+   Compiling solana-nonce v3.3.0
+   Compiling borsh-derive v0.10.4
+   Compiling solana-loader-v3-interface v6.1.1
+   Compiling solana-invoke v0.5.1
+   Compiling solana-stake-interface v2.0.2
+   Compiling spl-token-group-interface v0.7.2
+   Compiling borsh v0.10.4
+   Compiling solana-example-mocks v3.0.0
+   Compiling anchor-attribute-error v1.2.1
+   Compiling anchor-attribute-program v1.2.1
+   Compiling anchor-attribute-event v1.2.1
+   Compiling anchor-derive-accounts v1.2.1
+   Compiling anchor-attribute-account v1.2.1
+   Compiling anchor-lang-error v1.2.1
+   Compiling anchor-attribute-constant v1.2.1
+   Compiling anchor-derive-serde v1.2.1
+   Compiling solana-feature-gate-interface v3.1.0
+   Compiling solana-epoch-stake v3.0.1
+   Compiling solana-blake3-hasher v3.1.0
+   Compiling solana-serde-varint v3.0.1
+   Compiling kaigan v0.5.0
+   Compiling spl-token-interface v2.0.0
+   Compiling spl-associated-token-account-interface v2.0.0
+   Compiling rmp-serde v1.3.1
+   Compiling anchor-lang v1.2.1
+   Compiling solana-program v3.0.0
+   Compiling spl-pod v0.7.4
+   Compiling spl-token-confidential-transfer-proof-generation v0.5.1
+   Compiling mpl-core v0.12.1
+   Compiling spl-token-confidential-transfer-proof-extraction v0.5.1
+   Compiling spl-token-metadata-interface v0.8.0
+   Compiling spl-token-2022-interface v2.1.0
+   Compiling anchor-spl v1.2.1
+   Compiling soulbound v0.1.0 (/w/programs/soulbound)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 39s
+     Running unittests src/lib.rs (/w/target/debug/deps/soulbound-057c0b612f44e9e7)
+   Compiling tests v0.1.0 (/w/tests)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.06s
+     Running unittests src/lib.rs (target/debug/deps/tests-0e4be13664935b4a)
+
+running 10 tests
+test test_commit_memory_root::req10_13_epoch_zero_append_immutable_event_rent_and_capacity ... 
