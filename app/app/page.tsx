@@ -440,6 +440,7 @@ export default function Page() {
     <main>
       <h1>SOULBOUND</h1>
       <p className="sub">Talk to it and it changes \u2014 and every change is provable.</p>
+      <p><a href="/life" style={{ color: "#b7e4c7" }}>Inspect its life &amp; proof →</a></p>
       <div className="stage">
         <div className="avatar" aria-label="Character placeholder">S</div>
         <div>
