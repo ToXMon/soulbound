@@ -1,0 +1,63 @@
+Ticket 006 independent verification — AdaL (thinker), 2026-10-31
+All commands executed by AdaL on Tolu's Mac in the pinned image sb-anchor:1.2.1
+(solana-cli 4.3.2, anchor-cli 1.2.1, host rustc 1.99.1 — versions confirmed in
+the image before running). No signing keys mounted; chain reads via public RPC.
+
+1) anchor build + LiteSVM suite (pinned image, Mac repo mounted):
+   $ docker run --rm --user 0 -v sbcargo:/usr/local/cargo/registry \
+       -v $PWD/programs/soulbound:/w -w /w sb-anchor:1.2.1 sh -c \
+       'anchor build && cargo test -p tests -- --nocapture --test-threads=1'
+   anchor build: expected dual crate-type/LTO warning + known local keypair
+   mismatch warning (finding F2 in 005 review, still unremediated); completed.
+   cargo test: 10 passed; 0 failed (7.44s) — the 9 prior tests green plus:
+     test_evolve_traits::req04_20_21_22_runtime_replacement_provenance_and_direct_owner_rejection
+       - direct UpdatePluginV1 by owner → InstructionError Custom(26) = MplCoreError::NoApprovals
+         (asset update authority is the config PDA — REQ-21 double-gated)
+       - evolve_traits without runtime signer → Custom(3010), config/asset/dream state
+         byte-identical before/after (atomic failure)
+       - success path: full ordered attribute-list replacement verified by re-reading
+         the plugin; journal hash + revision 1 stored in DreamState (89 bytes,
+         rent 1,102,360 lamports, CU 47,796); TraitsEvolved event decoded with
+         correct discriminator and fields; no config layout migration (154 bytes kept)
+
+2) IDL snapshot comparison:
+   $ cmp programs/soulbound/target/idl/soulbound.json programs/soulbound/idl/soulbound.json
+   -> identical
+
+3) Devnet upgrade reproducibility (independent, public RPC):
+   ProgramData 6YtN1z61nFydyyyqYTnP85VVFtkDhkM9baHe8HiN6TbD: 291,181 bytes;
+   executable SHA-256 (bytes 45..) = 51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153
+   $ shasum -a 256 programs/soulbound/target/deploy/soulbound.so
+   51997587fb67648b65ce0610b757d7988f30dcabd85c3c3332c82b1d9ddf8153
+   -> local rebuild is bit-for-bit identical to the deployed 006 program.
+
+3b) DreamState provenance on devnet (correction, 2026-10-31):
+   $ getProgramAccounts(program, filters=[{dataSize:89}])   # DreamState layout
+   -> 0 accounts. The earlier draft of this file implied the provenance account
+   was live on devnet; that was WRONG (the reviewer had verified only ProgramData).
+   Corrected here and in review.md at pi's request. Provenance is LiteSVM-verified
+   only until a live evolve_traits transaction runs.
+
+4) Model purity (source scan of agent/dream/):
+   - consolidation model: muse-spark-1.3; review model: Muse Wonder
+     (agent/dream/wonder-prompt.ts); both via Meta Model API (OpenAI SDK shape).
+   - No Baseten/non-Meta endpoint in the dream path. (Tolu approved direct Meta
+     Spark 1.3 consolidation in place of Baseten muse-spark-open-1026 — recorded
+     in the doer commit message and pi-session.log.)
+
+5) Not independently verified (labeled, matching the doer's own honest claims):
+   - Scheduled/cron execution (server scheduling deferred by Tolu's closeout
+     authorization; dream.cron is shipped but not activated).
+   - Live nonempty trait mutation on devnet (Wonder proposed no trait changes in
+     the real run, so no trait tx was signed — consequently NO DreamState
+     provenance account exists on devnet: reviewer re-check 2026-10-31 counted
+     zero 89-byte accounts owned by the program via getProgramAccounts.
+     Provenance storage is verified in LiteSVM only; the program upgrade alone
+     is live and verified on-chain. The mutation beat remains a demo-day live
+     action).
+   - Local cron activation was blocked by the doer (pi-local-cron-activation-
+     blocked.json) — correct: no unapproved background jobs.
+
+Verdict inputs: code review of evolve_traits.rs (runtime-signer gate + config-PDA
+CPI authority per the 2026-10-30 thinker resolution), test assertions, commit
+scope (55 files, no secrets found by scan), and the checks above.
