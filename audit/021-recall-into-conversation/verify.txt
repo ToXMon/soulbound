@@ -1,0 +1,105 @@
+Ticket 021 — pi doer self-checks, 2026-10-31; NOT independent verification.
+Approved base: dd6660e. No commit or push yet.
+Authorized scope adjacency: index.ts bind existing MemoryStore / unbind on shutdown, approved by AdaL 2026-10-31 and reflected in ticket. Store API/lifecycle/hash/schema/seal untouched.
+
+LATENCY
+"decide-only latency delta + direct recall timing; full voice-turn delta not measurable with the current harness (deferred to the voice-lane ticket)."
+Before any source edits: node agent/scripts/latency-harness.ts --turns 20
+20/20; p50 983ms; decide-only, no VT or TTS latency claim.
+After: existing latency-harness.ts imported through a temporary inline Node operator wrapper which creates/seals a synthetic fixture store, binds it, and enables MEMORY_ENABLED=true MEMORY_RECALL_ENABLED=true. No harness source edits. 20 requested turns, 20/20 complete; p50 907ms.
+After p50 minus before p50 = -76ms (<30ms). Independent live API runs are noisy; this observed delta is not a causal speedup claim.
+Synthetic fixture summary: The synthetic character is curious about orchid gardens.
+Four owner turns logged injected record IDs; stranger turns and misses injected nothing.
+Raw after log: /tmp/sb021-latency-after.log (synthetic transcripts only).
+Direct recall: N=200 measured calls following 20 warmups, 1000 synthetic sealed records, top_k=3, max_chars=1800; p50=1.231ms (<30ms), from targeted test run.
+
+CHECKS
+- env -u NODE_ENV pnpm build: PASS; /tmp/sb021-build.log. Existing Next.js multiple-lockfile warning.
+- node --test agent/scripts/retrieval.test.mjs agent/scripts/committer.test.mjs agent/scripts/memory.test.mjs: 43/43 PASS; /tmp/sb021-tests.log. Existing memory tests emit FileHandle GC warnings.
+- node --test: 77/77 PASS; /tmp/sb021-all-tests.log.
+- git diff --check: PASS.
+- Recall lock collision self-check: actual live store's writer lock remains held; a second open fails; recall succeeds without opening another store; filenames, store bytes and lock inode unchanged. Unbound recall with a nonexistent path returns empty and leaves path absent.
+- Tests cover pure ranking/recency/epoch/stable ties, top_k, Unicode/JSON character accounting, exact-boundary fit and whole-record skipping, oversized inputs, empty/miss/invalid knobs, owner-only gate, disable/unbind, sealed eligibility, corrections, persistence/reopen, local proofs, and both streaming/nonstreaming context injection through offline HTTP fixture.
+
+LIVE SYNTHETIC TWO-SESSION CHECK (not an owner microphone/LiveKit check)
+RECALL_LIVE_CHECK=true MEMORY_RECALL_ENABLED=true node --env-file=agent/.env --test --test-name-pattern='restart/session-2' agent/scripts/retrieval.test.mjs
+PASS, live non-contributor muse-spark-1.3. Session 1 persisted synthetic orchid/gate record, sealed epoch 0, closed store; session 2 reopened and queried topic. Shared context builder injected full summary and provenance; Spark reply contained expected blue gate. Temporary synthetic store removed afterward.
+Logged ID: 7a69c628-07aa-4c89-9f67-de7885cf5599, epoch 0.
+Raw log /tmp/sb021-live.log contains IDs and aggregate status, no transcript/personal data.
+
+BLOCKED / UNVERIFIED
+Actual Mac-local committed-epoch-0 store/namespace are not configured in agent/.env (metadata-only preflight: configured=false, existing=false). No private store path or namespace was guessed. Thus inclusion of ACTUAL recalled records against committed root 67929cc8390f37f570f24420c3c83c7e176afbdfd14b751e5b837d9704a2092c remains UNVERIFIED; synthetic local proofs are not substituted for committed proofs. Actual owner voice two-session check also remains UNVERIFIED.
+No README/demo/SOULBOUND changes or cross-session product claim.
+No audit/ edits: project constitution forbids doer edits there; AdaL must package this evidence and session export. No review.md authored by doer.
+No commit yet: waiting on required actual-store verification/configuration and evidence packaging.
+
+Exact source files changed:
+agent/src/memory/retrieval.ts (new)
+agent/src/decide.ts
+agent/src/index.ts (authorized adjacency only: import + bind + shutdown unbind)
+agent/scripts/retrieval.test.mjs (new)
+agent/.env.example
+docs/memory-schema.md (append-only section)
+
+FOLLOW-UP REAL-STORE VERIFICATION ATTEMPT — 2026-10-31
+Requested by AdaL after agent/.env configuration. Verification script prepared at /tmp/sb021-real-check.mjs; it requires an existing store.json BEFORE opening the store and never appends or seals. No private transcript/summary is printed.
+First preflight: OWNER_SPEAKER_LABEL was unset. No store was opened.
+Second preflight: supplied OWNER_SPEAKER_LABEL=A as an explicit scripted test label (same as baseline harness). The configured MEMORY_STORE_PATH still points to a placeholder location; stat of the namespace store.json failed with ENOENT. No MemoryStore.open call occurred; no store, directory or writer lock was created.
+STOPPED: actual store path still missing. Real session-2 recall, committed epoch-0 proof and real owner-label injection remain UNVERIFIED. No commit or push, per doer rule to stop on missing required configuration.
+The raw temporary failure log contains a placeholder path, not memory content. Before evidence packaging, use this redacted summary instead of the raw error.
+
+FINAL REAL-STORE FOLLOW-UP — 2026-10-31
+The owner supplied the actual private store configuration and OWNER_SPEAKER_LABEL=A. Earlier configuration blockers above are resolved.
+Command: node --env-file=agent/.env /tmp/sb021-real-check.mjs
+Exit code: 0. Redacted log: /tmp/sb021-real-check.log.
+Real store record count: 2.
+Session-1 existing persisted record A: e2ce3093-7b39-4dbf-bf0e-b86cb5567a36, epoch 0. No new extraction or synthetic record was added to the real store.
+Session 2: closed/reopened the existing store, bound its live instance, queried a topic from record A without logging the query. Shared context builder and live Spark streaming call both logged injected ID e2ce3093-7b39-4dbf-bf0e-b86cb5567a36.
+Full injected summary matches stored record: true (content omitted).
+Every injected ID exists in store: true. Every injected record's epoch: 0.
+Existing 004 proofFor + verifyProof against the requested committed epoch-0 root 67929cc8390f37f570f24420c3c83c7e176afbdfd14b751e5b837d9704a2092c: true.
+Existing 004 verifyRecord: true. Root compared against the thinker-supplied, previously committed root; no new RPC or chain read in recall.
+Live non-contributor Spark response nonempty: true. Private query/response/summary omitted from all exported results.
+Owner label A resolves to owner and injects record A: true.
+Ambiguous speaker resolves to stranger and injects nothing: true.
+Low-confidence owner label resolves to stranger and injects nothing: true.
+Scope of owner observation: scripted diarized turn label A, existing resolveSpeaker unchanged. No fresh microphone/VT capture or full voice-turn latency claim.
+Store bytes unchanged after close: true. No append, seal or record modification.
+
+Final numbers (unchanged source tree since successful checks):
+Build: PASS. Targeted tests: 43/43 PASS. All node tests: 77/77 PASS.
+Decide-only before p50: 983ms; recall-enabled after p50: 907ms; delta: -76ms.
+Direct recall-call p50: 1.231ms, N=200, 1000 synthetic sealed records, 20 warmups excluded.
+Both measured budgets <30ms: true. Full voice-turn delta remains deferred per ticket amendment.
+Evidence packaging into audit/ remains AdaL's responsibility under the constitution's doer prohibition on audit edits. Execution evidence currently resides in /tmp/sb021-verify.txt and the referenced logs; do not represent the future audit path as already populated by this doer.
+Commit created: 8cbfd9782ce25cd222ce26bb569a3f00c0518db4.
+Exact requested subject and pi attribution trailer used; authored with repository-configured identity. Six scoped source/doc/test files committed. No push. Unrelated untracked files untouched.
+
+--- AdaL independent verification (2026-10-31) ---
+- Full node --test suite (agent/scripts/*.test.mjs): 69/69 pass (10.9 s).
+  (pi reported 77/77 — likely a wider file set; the reviewer's own run of the
+  7 test files passes 69/69. No failures either way.)
+- env -u NODE_ENV pnpm build: EXIT:0 clean.
+- Commit 8cbfd97 scope: 6 files, +319/−8. index.ts diff = exactly the authorized
+  3 lines (import bindRecallStore, bindRecallStore(memoryStore) after open,
+  bindRecallStore(null) in shutdown). No store lifecycle change, no voice-path
+  edits. decide.ts threads recall into both decide() and decideStream() via one
+  conversationMessages() helper; log line prints injected record ids.
+- retrieval.ts review: read-only Pick<MemoryStore,"records"|"manifests"> type;
+  only records covered by a SEALED manifest are eligible for injection (so every
+  injected memory has a manifest provenance path); superseded records excluded;
+  deterministic scoring (overlap + recency + epoch) — no model calls; hard caps
+  (topK<=10, maxChars<=4000) enforced with invalid-input → empty; skip-whole-record
+  truncation; prompt-injection-hardened header; silent catch so recall never gates
+  speech; owner-kind gating (kind !== "owner" → empty).
+- Tests prove: recall does not acquire the writer lock (same lock inode before/
+  after) and does not create files (missing path → empty result, ENOENT asserted).
+- Latency: direct recall p50 1.231 ms (200 calls) — 24x under the 30 ms budget;
+  decide-only p50 delta −76 ms (983 → 907 ms), labeled per the 2026-10-31
+  amendment as decide-only, not full voice-turn.
+- Real-store checks: two-session injection + epoch-0 inclusion proof PASS; store
+  bytes unchanged; owner-label-A injection PASS. Redaction scan of this file:
+  only synthetic-fixture content ("orchid gardens"), no personal data.
+- Residual (honest labels): owner check used scripted label A, not fresh mic
+  capture; full voice-turn latency delta not measurable with the current harness
+  (deferred to the voice-lane ticket).
