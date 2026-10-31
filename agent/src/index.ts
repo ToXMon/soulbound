@@ -10,6 +10,7 @@ import { LiveKitAudioPublisher, ttsProviderFromEnv, voiceConfigFromEnv } from ".
 import { randomUUID } from "node:crypto";
 import { memoryConfigFromEnv } from "./memory/config.js";
 import { MemoryStore } from "./memory/store.js";
+import { bindRecallStore } from "./memory/retrieval.js";
 import { MemoryQueue } from "./memory/queue.js";
 import { SparkExtractor, type SourceTurn } from "./memory/extract.js";
 
@@ -33,6 +34,7 @@ export default defineAgent({
     let turnSeq = 0;
     if (memCfg) {
       memoryStore = await MemoryStore.open(memCfg.storePath, memCfg.namespace);
+      bindRecallStore(memoryStore);
       memoryQueue = new MemoryQueue(memoryStore, new SparkExtractor(), { capacity: memCfg.capacity, timeoutMs: memCfg.timeoutMs });
       console.log(`[memory] enabled character=${memCfg.namespace.characterId} records=${memoryStore.stats().records}`);
     }
@@ -129,6 +131,7 @@ export default defineAgent({
     }
     await vt.connect();
     ctx.addShutdownCallback(async () => {
+      bindRecallStore(null);
       turnAbort?.abort();
       vt.close();
       if (publisher) await publisher.close();

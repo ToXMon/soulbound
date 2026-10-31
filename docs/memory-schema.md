@@ -82,3 +82,43 @@ data availability, or proof that every conversation was extracted. See
 | Queue full | Enqueue refused, `droppedOverflow` counted, error reported |
 | Corrupt store / tampered record | Open/verify fails loudly; nothing overwritten |
 | Shutdown with pending jobs | Bounded drain attempted; incomplete jobs reported, not claimed durable |
+
+## Ticket 021 recall selection contract (append-only; protocol unchanged)
+
+Recall receives the existing live store's read views from `index.ts`; it never
+opens, closes, creates, seals or writes storage. Shutdown unbinds the reference.
+No path lookup, chain read, model call, embedding service or external index is
+part of retrieval. Unbound/nonexistent storage is an empty result without IO.
+
+Recall requires memory enabled, recall not explicitly disabled, and an
+owner-classified turn. Diarization remains a heuristic, not authentication;
+this is not an arbitrary-wallet privacy boundary. Only sealed-manifest member
+records qualify, so each injected ID has a local inclusion proof via 004's
+`proofFor`/`verifyRecord` API. Unsealed records are not injected; any superseded
+record is excluded even if its correction is still unsealed. Sealing remains
+an explicit operator action outside this ticket. A local seal is NOT evidence
+of an on-chain commit; compare its epoch/root through the separate 015 verify
+path before claiming committed inclusion. Recall performs no on-chain check.
+
+The query representation is a lowercase set of Unicode letter/number terms,
+excluding one-character terms and the fixed conversational stopwords in
+`retrieval.ts`. Summary terms use the identical transform; no stemming or
+semantic matching is claimed. Zero overlap is a miss. Ranking is descending:
+`100 * shared_terms / query_terms + 1 / (1 + age_days) + epoch / (1 + epoch)`.
+Age is nonnegative elapsed days against an explicit clock input. Ties use
+ascending record ID (code-unit comparison), independent of store order.
+
+Selection walks ranked records, skipping a record entirely if it cannot fit,
+until top_k is reached. The character count is JavaScript UTF-16 string length
+and includes the framing, JSON escaping, newline separators, full summaries,
+record IDs, epochs and content hashes. No record is sliced. Default top_k is 3
+(maximum 10); default cap is 1800 with a hard ceiling of 4000. Zero disables
+injection. Invalid numeric knobs yield no context. Empty/miss/disabled/unbound
+results append nothing, log nothing and preserve the original prompt.
+
+Both Spark call variants share `conversationMessages`. The stable persona
+prefix stays first; bounded recalled JSON data follows with an explicit
+not-instructions warning. Summaries remain untrusted data (not guaranteed true,
+nor immune to model prompt injection). Only injected IDs are logged, never
+summaries or transcripts. Deterministic offline tests are self-checks, not
+independent verification or evidence of live owner-voice cross-session recall.

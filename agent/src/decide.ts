@@ -1,6 +1,7 @@
 // decide: Muse Spark via the OpenAI SDK against the Meta Model API.
 // Model purity: muse-spark-1.3 only; never a -contributor variant.
 import OpenAI from "openai";
+import { recallForTurn } from "./memory/retrieval.js";
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions";
 import { systemPrompt, type DiarizedTurn, type SpeakerKind } from "./orient.js";
 
@@ -43,6 +44,15 @@ function spark(): OpenAI {
   return client;
 }
 
+export function conversationMessages(turn: DiarizedTurn, kind: SpeakerKind) {
+  const recall = recallForTurn(turn.text, kind);
+  if (recall.recordIds.length) console.log(`[recall] record_ids=${JSON.stringify(recall.recordIds)}`);
+  return [
+    { role: "system" as const, content: systemPrompt(kind) + recall.context },
+    { role: "user" as const, content: turn.text },
+  ];
+}
+
 export interface StreamCallbacks {
   onFirstToken?: () => void;
   onDelta?: (delta: string) => void | Promise<void>;
@@ -67,10 +77,7 @@ export async function decideStream(
       model,
       stream: true,
       reasoning_effort: reasoningEffort() as unknown as ChatCompletionReasoningEffort,
-      messages: [
-        { role: "system", content: systemPrompt(kind) },
-        { role: "user", content: turn.text },
-      ],
+      messages: conversationMessages(turn, kind),
     },
     cb.signal ? { signal: cb.signal } : undefined,
   );
@@ -97,10 +104,7 @@ export async function decide(turn: DiarizedTurn, kind: SpeakerKind): Promise<Tur
   const res = await spark().chat.completions.create({
     model,
     reasoning_effort: reasoningEffort() as unknown as ChatCompletionReasoningEffort,
-    messages: [
-      { role: "system", content: systemPrompt(kind) },
-      { role: "user", content: turn.text },
-    ],
+    messages: conversationMessages(turn, kind),
   });
   const text = res.choices[0]?.message?.content?.trim();
   if (!text) throw new Error("Spark returned an empty reply");
