@@ -79,7 +79,7 @@ export async function readCommitments(ns: Namespace, rpc: Rpc) {
   } else if (config.readBigUInt64LE(144) !== 0n) throw new Error("missing history");
   if (!Number.isSafeInteger(accounts.context.slot) || accounts.context.slot < 0) throw new Error("invalid slot");
   return { ...identity, entries, asset: decodeAddress(config.subarray(80, 112)),
-    slot: accounts.context.slot, stage: config[152] === 0 ? "born" : null };
+    slot: accounts.context.slot, stage: config[152] === 0 ? "born" : config[152] === 1 ? "awakened" : null };
 }
 
 // Bounded Borsh subset for the pinned mpl-core 0.12.1 layouts: BaseAssetV1,

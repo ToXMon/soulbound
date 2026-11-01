@@ -74,6 +74,17 @@ test("REQ-51/52: committed epoch zero passes; tampered copy fails; store unchang
   assert.equal(JSON.stringify(good).includes("PRIVATE_CANARY"), false);
   assert.deepEqual(await readFile(path), before);
 }));
+test("023: life-stage projection maps born/awakened, unknown fail-closed", async () => fixture(async ({ env, rpc, state }) => {
+  assert.equal((await readLife(env, rpc)).chain.stage, "born");
+  state.config[152] = 1;
+  assert.equal((await readLife(env, rpc)).chain.stage, "awakened");
+  for (const unknown of [2, 7, 255]) {
+    state.config[152] = unknown;
+    const data = await readLife(env, rpc);
+    assert.equal(data.chain.stage, null);
+    assert.equal(data.chainUnavailable, false); // otherwise-valid read still succeeds
+  }
+}));
 test("local seal is not a chain commitment", async () => fixture(async ({ env, rpc, id, state }) => {
   state.history = null;
   assert.equal((await readProof(env, rpc, id)).status, "not-committed");
