@@ -30,4 +30,20 @@ pub enum SoulboundError {
     InvalidDreamState,
     #[msg("Dream revision changed; fetch current attributes before proposing again")]
     StaleDreamRevision,
+    #[msg("Heartbeat can only advance a character from Born")]
+    HeartbeatWrongStage,
+    #[msg("Heartbeat requires at least two committed memory roots")]
+    HeartbeatInsufficientRoots,
+    #[msg("Solana clock is earlier than the first committed memory root")]
+    HeartbeatClockRegression,
+    #[msg("The first committed root timestamp cannot represent the heartbeat delay")]
+    HeartbeatTimestampOverflow,
+    #[msg("Heartbeat minimum elapsed time has not passed")]
+    HeartbeatTooEarly,
+    #[msg("Heartbeat reward mint must be legacy SPL with zero decimals and initial zero supply")]
+    InvalidHeartbeatRewardMint,
+    #[msg("Heartbeat reward must be the single non-reissuable token in its vault")]
+    InvalidHeartbeatRewardVault,
+    #[msg("Core Attributes plugin must contain exactly one life_stage attribute")]
+    InvalidHeartbeatAttributes,
 }

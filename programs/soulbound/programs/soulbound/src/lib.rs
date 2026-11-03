@@ -46,4 +46,14 @@ pub mod soulbound {
     ) -> Result<()> {
         instructions::initialize_character::handle(ctx, character_id, runtime_signer, trait_vector)
     }
+
+    /// One-time owner binding of the legacy SPL heartbeat reward mint and vault ATA.
+    pub fn initialize_heartbeat_reward(ctx: Context<InitializeHeartbeatReward>) -> Result<()> {
+        instructions::initialize_heartbeat_reward::initialize_heartbeat_reward_handle(ctx)
+    }
+
+    /// REQ-30..32: permissionless single Born-to-Awakened milestone.
+    pub fn crank_heartbeat(ctx: Context<CrankHeartbeat>) -> Result<()> {
+        instructions::crank_heartbeat::crank_heartbeat_handle(ctx)
+    }
 }

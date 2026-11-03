@@ -121,6 +121,270 @@
       ]
     },
     {
+      "name": "crank_heartbeat",
+      "docs": [
+        "REQ-30..32: permissionless single Born-to-Awakened milestone."
+      ],
+      "discriminator": [
+        106,
+        238,
+        139,
+        6,
+        235,
+        28,
+        36,
+        9
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  104,
+                  97,
+                  114,
+                  97,
+                  99,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.owner",
+                "account": "CharacterConfig"
+              },
+              {
+                "kind": "account",
+                "path": "config.character_id",
+                "account": "CharacterConfig"
+              }
+            ]
+          },
+          "relations": [
+            "history",
+            "reward_config"
+          ]
+        },
+        {
+          "name": "history",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  111,
+                  114,
+                  121,
+                  95,
+                  114,
+                  111,
+                  111,
+                  116,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  101,
+                  97,
+                  114,
+                  116,
+                  98,
+                  101,
+                  97,
+                  116,
+                  95,
+                  114,
+                  101,
+                  119,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint",
+          "writable": true,
+          "relations": [
+            "reward_config"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "reward_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "caller_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "caller"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "reward_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "evolve_traits",
       "docs": [
         "REQ-04, 20..22: runtime-gated full Attributes replacement and provenance."
@@ -347,6 +611,169 @@
       ]
     },
     {
+      "name": "initialize_heartbeat_reward",
+      "docs": [
+        "One-time owner binding of the legacy SPL heartbeat reward mint and vault ATA."
+      ],
+      "discriminator": [
+        186,
+        169,
+        66,
+        240,
+        76,
+        132,
+        126,
+        120
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  104,
+                  97,
+                  114,
+                  97,
+                  99,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.owner",
+                "account": "CharacterConfig"
+              },
+              {
+                "kind": "account",
+                "path": "config.character_id",
+                "account": "CharacterConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "reward_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  104,
+                  101,
+                  97,
+                  114,
+                  116,
+                  98,
+                  101,
+                  97,
+                  116,
+                  95,
+                  114,
+                  101,
+                  119,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "reward_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "rotate_runtime_signer",
       "docs": [
         "Ticket 005 amendment: owner-authorized recovery with replacement proof of possession."
@@ -437,6 +864,19 @@
       ]
     },
     {
+      "name": "HeartbeatRewardConfig",
+      "discriminator": [
+        147,
+        133,
+        134,
+        15,
+        244,
+        27,
+        13,
+        123
+      ]
+    },
+    {
       "name": "MemoryRootHistory",
       "discriminator": [
         241,
@@ -451,6 +891,19 @@
     }
   ],
   "events": [
+    {
+      "name": "HeartbeatCranked",
+      "discriminator": [
+        252,
+        74,
+        90,
+        47,
+        184,
+        173,
+        50,
+        209
+      ]
+    },
     {
       "name": "MemoryRootCommitted",
       "discriminator": [
@@ -561,6 +1014,46 @@
       "code": 6013,
       "name": "StaleDreamRevision",
       "msg": "Dream revision changed; fetch current attributes before proposing again"
+    },
+    {
+      "code": 6014,
+      "name": "HeartbeatWrongStage",
+      "msg": "Heartbeat can only advance a character from Born"
+    },
+    {
+      "code": 6015,
+      "name": "HeartbeatInsufficientRoots",
+      "msg": "Heartbeat requires at least two committed memory roots"
+    },
+    {
+      "code": 6016,
+      "name": "HeartbeatClockRegression",
+      "msg": "Solana clock is earlier than the first committed memory root"
+    },
+    {
+      "code": 6017,
+      "name": "HeartbeatTimestampOverflow",
+      "msg": "The first committed root timestamp cannot represent the heartbeat delay"
+    },
+    {
+      "code": 6018,
+      "name": "HeartbeatTooEarly",
+      "msg": "Heartbeat minimum elapsed time has not passed"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidHeartbeatRewardMint",
+      "msg": "Heartbeat reward mint must be legacy SPL with zero decimals and initial zero supply"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidHeartbeatRewardVault",
+      "msg": "Heartbeat reward must be the single non-reissuable token in its vault"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidHeartbeatAttributes",
+      "msg": "Core Attributes plugin must contain exactly one life_stage attribute"
     }
   ],
   "types": [
@@ -645,12 +1138,86 @@
       }
     },
     {
+      "name": "HeartbeatCranked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "caller",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_amount",
+            "type": "u64"
+          },
+          {
+            "name": "first_root_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "from_stage",
+            "type": {
+              "defined": {
+                "name": "LifeStage"
+              }
+            }
+          },
+          {
+            "name": "to_stage",
+            "type": {
+              "defined": {
+                "name": "LifeStage"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "HeartbeatRewardConfig",
+      "docs": [
+        "Immutable mint binding for the one-time heartbeat reward. No update or close path exists."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "LifeStage",
       "type": {
         "kind": "enum",
         "variants": [
           {
             "name": "Born"
+          },
+          {
+            "name": "Awakened"
           }
         ]
       }

@@ -6,7 +6,11 @@ pub const CHARACTER_NAME: &str = "SOULBOUND Character";
 pub const MEMORY_ROOTS_SEED: &[u8] = b"memory_roots";
 pub const MAX_MEMORY_ROOTS: usize = 128;
 pub const DREAM_SEED: &[u8] = b"dream";
+pub const HEARTBEAT_REWARD_SEED: &[u8] = b"heartbeat_reward";
 pub const MAX_ATTRIBUTES: usize = 16;
+pub const HEARTBEAT_REWARD_AMOUNT: u64 = 1;
+pub const HEARTBEAT_MIN_ROOTS: usize = 2;
+pub const HEARTBEAT_MIN_ELAPSED_SECONDS: i64 = 60;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
 pub struct TraitAttribute {
@@ -42,15 +46,26 @@ pub struct MemoryRootHistory {
     pub entries: Vec<MemoryRootEntry>,
 }
 
+/// Immutable mint binding for the one-time heartbeat reward. No update or close path exists.
+#[account]
+#[derive(InitSpace)]
+pub struct HeartbeatRewardConfig {
+    pub config: Pubkey,
+    pub reward_mint: Pubkey,
+    pub bump: u8,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub enum LifeStage {
     Born,
+    Awakened,
 }
 
 impl LifeStage {
     pub fn as_str(&self) -> &'static str {
         match self {
             LifeStage::Born => "born",
+            LifeStage::Awakened => "awakened",
         }
     }
 }

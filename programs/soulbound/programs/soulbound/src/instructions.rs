@@ -6,3 +6,7 @@ pub mod commit_memory_root;
 pub use commit_memory_root::*;
 pub mod rotate_runtime_signer;
 pub use rotate_runtime_signer::*;
+pub mod initialize_heartbeat_reward;
+pub use initialize_heartbeat_reward::*;
+pub mod crank_heartbeat;
+pub use crank_heartbeat::*;

@@ -8,6 +8,7 @@ rust-version = "1.97.1"
 [dependencies]
 soulbound = { version = "0.1.0", path = "../programs/soulbound", features = ["no-entrypoint"] }
 anchor-lang = "=1.2.1"
+anchor-spl = { version = "=1.2.1", features = ["token", "associated_token"] }
 mpl-core = { version = "=0.12.1", features = ["borsh-v1"] }
 litesvm = "0.18.1"
 solana-keypair = "3.1"

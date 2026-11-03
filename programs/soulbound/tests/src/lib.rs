@@ -6,3 +6,5 @@ mod test_initialize_character;
 mod test_commit_memory_root;
 #[cfg(test)]
 mod test_rotate_runtime_signer;
+#[cfg(test)]
+mod test_crank_heartbeat;
