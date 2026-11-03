@@ -36,7 +36,7 @@ export type VisionStatus = "idle" | "capturing" | "sent" | "observed" | "failed"
 
 /** Why a look ended "unavailable". Stable, non-sensitive categories only. */
 export type VisionUnavailableReason =
-  | "camera-denied" | "no-camera" | "camera-timeout" | "frame-too-large"
+  | "camera-denied" | "no-camera" | "camera-prompt" | "camera-busy" | "camera-no-frames" | "camera-timeout" | "frame-too-large"
   | "send-failed" | "no-response" | "disconnected" | "unknown";
 
 export function classifyVisionError(e: unknown): VisionUnavailableReason {
@@ -44,7 +44,10 @@ export function classifyVisionError(e: unknown): VisionUnavailableReason {
   const msg = e instanceof Error ? e.message : String(e ?? "");
   if (name === "NotAllowedError" || name === "SecurityError") return "camera-denied";
   if (name === "NotFoundError" || name === "OverconstrainedError") return "no-camera";
-  if (name === "NotReadableError" || /capture timeout/.test(msg)) return "camera-timeout";
+  if (name === "NotReadableError") return "camera-busy";
+  if (/camera-acquire-timeout/.test(msg)) return "camera-prompt";
+  if (/camera-no-frames/.test(msg)) return "camera-no-frames";
+  if (/capture timeout/.test(msg)) return "camera-timeout";
   if (/exceeds|too large|fit/i.test(msg)) return "frame-too-large";
   if (/publish timeout/.test(msg)) return "send-failed";
   if (/disconnected/.test(msg)) return "disconnected";
@@ -278,7 +281,7 @@ export class VisionTrigger {
           return bytes;
         });
         frame = await Promise.race([capture, new Promise<never>((_, reject) => {
-          captureTimer = setTimeout(() => reject(new Error("capture timeout")), this.deps.captureTimeoutMs ?? 30000);
+          captureTimer = setTimeout(() => reject(new Error("capture timeout")), this.deps.captureTimeoutMs ?? 45000);
         })]);
       } finally { clearTimeout(captureTimer); }
       // Generation check: if discard() was called during capture, do not

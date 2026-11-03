@@ -81,6 +81,9 @@ test("unavailable outcomes carry a specific, non-sensitive reason", async () => 
   assert.equal(classifyVisionError(Object.assign(new Error("x"), { name: "NotAllowedError" })), "camera-denied");
   assert.equal(classifyVisionError(Object.assign(new Error("x"), { name: "NotFoundError" })), "no-camera");
   assert.equal(classifyVisionError(new Error("capture timeout")), "camera-timeout");
+  assert.equal(classifyVisionError(new Error("camera-acquire-timeout")), "camera-prompt");
+  assert.equal(classifyVisionError(new Error("camera-no-frames")), "camera-no-frames");
+  assert.equal(classifyVisionError(Object.assign(new Error("x"), { name: "NotReadableError" })), "camera-busy");
   assert.equal(classifyVisionError(new Error("publish timeout")), "send-failed");
   assert.equal(classifyVisionError(new Error("envelope 60000B exceeds 49152B limit")), "frame-too-large");
   assert.equal(classifyVisionError(new Error("disconnected")), "disconnected");

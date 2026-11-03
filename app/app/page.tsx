@@ -78,7 +78,10 @@ function describeVisionReason(reason: VisionUnavailableReason | null): string {
   switch (reason) {
     case "camera-denied": return "the browser blocked the camera. Click the camera icon in the address bar, allow it for this site, then try again.";
     case "no-camera": return "no camera was found on this device.";
-    case "camera-timeout": return "the camera did not start in time (permission prompt unanswered, or another app is using it). Allow the prompt and try again.";
+    case "camera-prompt": return "the camera permission prompt was not answered within 20 seconds. Allow the camera when Chrome asks, then try again.";
+    case "camera-busy": return "the camera is in use by another app or tab. Close it (Zoom, Photo Booth, other tabs) and try again.";
+    case "camera-no-frames": return "the camera opened but delivered no picture within 8 seconds. Check that the lens is uncovered and no other app is using it, then try again.";
+    case "camera-timeout": return "the camera took too long to start. Try again.";
     case "frame-too-large": return "the captured frame was too large to send.";
     case "send-failed": return "the frame could not be sent to the room.";
     case "disconnected": return "the room disconnected during the look. Rejoin and try again.";
@@ -141,7 +144,19 @@ export default function Page() {
     const epoch = connectionEpochRef.current;
     const generation = ++cameraGenerationRef.current;
     clearVisionStill();
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    // Stage 1: camera acquisition (permission prompt / device busy). Bounded,
+    // and a stream that arrives after the deadline is stopped, never used.
+    const acquisition = navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    let acquireTimer: ReturnType<typeof setTimeout> | undefined;
+    let stream: MediaStream;
+    try {
+      stream = await Promise.race([acquisition, new Promise<never>((_, reject) => {
+        acquireTimer = setTimeout(() => {
+          acquisition.then((late) => { for (const t of late.getTracks()) t.stop(); }, () => undefined);
+          reject(new Error("camera-acquire-timeout"));
+        }, 20000);
+      })]);
+    } finally { clearTimeout(acquireTimer); }
     // Permission may resolve after leave/unmount; never use that late stream.
     const video = document.createElement("video");
     let captureTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -151,15 +166,20 @@ export default function Page() {
       video.muted = true;
       video.playsInline = true;
       video.srcObject = stream;
+      // Stage 2: the camera must actually deliver a frame. Polling readyState
+      // instead of requestAnimationFrame, which browsers pause for hidden or
+      // occluded windows and would hang the look forever.
       const ready = async () => {
         await video.play();
-        if (!video.videoWidth) {
-          await new Promise((resolve) => video.addEventListener("loadedmetadata", resolve, { once: true }));
+        const deadline = Date.now() + 8000;
+        while (!(video.readyState >= 2 && video.videoWidth > 0)) {
+          if (Date.now() > deadline) throw new Error("camera-no-frames");
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await new Promise((resolve) => setTimeout(resolve, 250)); // let auto-exposure settle on the first frames
       };
       await Promise.race([ready(), new Promise<never>((_, reject) => {
-        captureTimeout = setTimeout(() => reject(new Error("capture timeout")), 10000);
+        captureTimeout = setTimeout(() => reject(new Error("camera-no-frames")), 12000);
       })]);
       if (generation !== cameraGenerationRef.current || cameraRef.current !== stream || epoch !== connectionEpochRef.current) throw new Error("capture cancelled");
       // Ticket 034: bounded canvas-encode helper — up to 16 dimension×quality
