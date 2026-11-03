@@ -9,6 +9,7 @@ import { MemoryStore, verifyProof } from "../dist/memory/store.js";
 import { retrieve, bindRecallStore, recallForTurn, MAX_RECALL_CHARS } from "../dist/memory/retrieval.js";
 import { conversationMessages, decide, decideStream } from "../dist/decide.js";
 import { systemPrompt } from "../dist/orient.js";
+import { act } from "../dist/act.js";
 
 const NS = { ownerId: "recall-test-owner", characterId: "recall-test-character" };
 const ENV = { MEMORY_ENABLED: "true" };
@@ -163,8 +164,16 @@ test("both Spark variants send the same bounded context (offline HTTP fixture)",
       await store.appendExtracted("one", [item("The synthetic orchid garden has a blue gate.")]);
       await store.sealEpoch(); bindRecallStore(store);
       const turn = { speaker: "A", text: "orchid garden" };
-      assert.equal((await decide(turn, "owner")).text, "Blue gate.");
-      assert.equal((await decideStream(turn, "owner")).text, "Blue gate.");
+      const plain = await decide(turn, "owner");
+      const streamed = await decideStream(turn, "owner");
+      assert.equal(plain.text, "Blue gate.");
+      assert.equal(streamed.text, "Blue gate.");
+      const expected = [{ id: store.records[0].id, hash: store.records[0].content_hash,
+        epoch: store.records[0].epoch, root: store.manifests[0].root }];
+      assert.deepEqual(plain.recallSources, expected);
+      assert.deepEqual(streamed.recallSources, expected);
+      assert.deepEqual(act(turn, "owner", streamed, 0).recallSources, expected);
+      assert.ok(!JSON.stringify(streamed.recallSources).includes(store.records[0].summary));
       assert.deepEqual(captured[0].messages, captured[1].messages);
       assert.ok(captured[0].messages[0].content.includes(store.records[0].summary));
       assert.ok(captured[0].messages[0].content.includes(store.records[0].id));
@@ -177,7 +186,7 @@ test("both Spark variants send the same bounded context (offline HTTP fixture)",
 
 test("direct recall-call timing: 200 calls over 1000 synthetic sealed records, p50 <30ms", () => {
   const records = Array.from({ length: 1000 }, (_, i) => record(`fixture-${i}`, `Synthetic orchid garden number ${i}.`, 0, i));
-  bindRecallStore({ records, manifests: [{ record_ids: records.map(r => r.id) }] });
+  bindRecallStore({ records, manifests: [{ epoch: 0, root: "1".repeat(64), record_ids: records.map(r => r.id) }] });
   try {
     const samples = [];
     for (let i = 0; i < 220; i++) {

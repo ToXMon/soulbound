@@ -128,3 +128,71 @@ test("no TTS configured keeps the text-only path", async () => {
   assert.equal(rec.tts?.status, "not-configured");
   assert.equal(rec.timing?.ttsMs, null);
 });
+
+// ---- Ticket 035: synthetic reference integration ----
+
+function fakeRefProvider(refAudio = null) {
+  const calls = [];
+  return {
+    name: "fake-ref-tts",
+    format: { sampleRate: 48000, channels: 1, encoding: "pcm_s16le" },
+    calls,
+    refAudio,
+    async *synthesize(req) {
+      calls.push(req);
+      req.onFirstChunk?.();
+      yield Buffer.alloc(960, 1);
+      yield Buffer.alloc(960, 2);
+    },
+  };
+}
+
+test("reference-aware provider preserves single-request reply synthesis", async () => {
+  const provider = fakeRefProvider("data:audio/wav;base64,ZmFrZQ==");
+  const sink = fakeSink();
+  const rec = await runTurn(turn, 100, {
+    streamReply: fakeStream(),
+    tts: provider,
+    voice,
+    sink,
+  });
+  assert.equal(provider.calls.length, 1, "one request per reply, not per sentence");
+  assert.equal(provider.calls[0].text, FULL);
+  assert.equal(provider.calls[0].seed, 42);
+  assert.equal(rec.reply, FULL);
+  assert.equal(rec.tts?.status, "ok");
+});
+
+test("reference provider failure preserves text reply and clears sink", async () => {
+  const provider = fakeRefProvider("data:audio/wav;base64,ZmFrZQ==");
+  // Override to throw mid-synthesis.
+  provider.synthesize = async function* () { throw new Error("ref endpoint gone"); };
+  const sink = fakeSink();
+  const rec = await runTurn(turn, 100, {
+    streamReply: fakeStream(),
+    tts: provider,
+    voice,
+    sink,
+  });
+  assert.equal(rec.reply, FULL);
+  assert.equal(rec.tts?.status, "failed");
+  assert.match(rec.tts?.error ?? "", /ref endpoint gone/);
+  assert.ok(sink.cleared >= 1);
+});
+
+test("reference provider cancellation preserves text and reports cancelled", async () => {
+  const provider = fakeRefProvider("data:audio/wav;base64,ZmFrZQ==");
+  const sink = fakeSink();
+  const ac = new AbortController();
+  ac.abort();
+  const rec = await runTurn(turn, 100, {
+    streamReply: fakeStream(),
+    tts: provider,
+    voice,
+    sink,
+    signal: ac.signal,
+  });
+  assert.equal(rec.reply, FULL);
+  assert.equal(rec.tts?.status, "cancelled");
+  assert.equal(provider.calls.length, 0);
+});

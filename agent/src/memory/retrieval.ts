@@ -8,7 +8,8 @@ const STOP = new Set("a an the i me my you your we our it its is are was were be
 const terms = (text: string) => new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(t => t.length > 1 && !STOP.has(t)));
 
 export interface RecallOptions { topK: number; maxChars: number; now: number }
-export interface RecallResult { context: string; recordIds: string[] }
+export interface RecallSource { id: string; hash: string; epoch: number; root: string }
+export interface RecallResult { context: string; recordIds: string[]; sources?: RecallSource[] }
 const empty = (): RecallResult => ({ context: "", recordIds: [] });
 
 /** Pure selection; caller supplies validated, eligible records and the clock.
@@ -52,10 +53,15 @@ export function recallForTurn(query: string, kind: string, env: NodeJS.ProcessEn
     const records = liveStore.records;
     const superseded = new Set(records.flatMap(r => r.supersedes ? [r.supersedes] : []));
     const sealedIds = new Set(liveStore.manifests.flatMap(m => m.record_ids));
-    return retrieve(records.filter(r => sealedIds.has(r.id) && !superseded.has(r.id)), query, {
+    const result = retrieve(records.filter(r => sealedIds.has(r.id) && !superseded.has(r.id)), query, {
       topK: Number(env.MEMORY_RECALL_TOP_K ?? 3),
       maxChars: Number(env.MEMORY_RECALL_MAX_CHARS ?? 1800),
       now: Date.now(),
     });
+    return { ...result, sources: result.recordIds.map(id => {
+      const record = records.find(r => r.id === id)!;
+      const manifest = liveStore!.manifests.find(m => m.epoch === record.epoch)!;
+      return { id, hash: record.content_hash, epoch: record.epoch, root: manifest.root };
+    }) };
   } catch { return empty(); } // optional recall must never gate speech
 }

@@ -9,6 +9,7 @@
 import { resolveSpeaker, type DiarizedTurn, type SpeakerKind } from "./orient.js";
 import { decideStream, type StreamCallbacks, type TurnReply } from "./decide.js";
 import { act, type TurnRecord, type TtsTurnStatus } from "./act.js";
+import type { SessionMessage, SpeakerSessions } from "./session-context.js";
 import {
   elapsedMs,
   PUBLISH_PENDING,
@@ -34,6 +35,9 @@ export interface RunTurnOptions {
   signal?: AbortSignal;
   /** Test seam: defaults to the real Spark streaming call. */
   streamReply?: StreamReplyFn;
+  /** Ticket 036: prior session pairs for conversation context. */
+  sessionHistory?: SessionMessage[];
+  speakerSessions?: SpeakerSessions;
 }
 
 // sttMs is preserved from observe (never silently invented here). When the
@@ -62,6 +66,8 @@ export async function runTurn(
   const assembler = new SentenceAssembler();
   const reply = await streamReply(turn, kind, {
     signal: options?.signal,
+    sessionHistory: options?.sessionHistory,
+    speakerHistory: options?.speakerSessions?.forTurn(turn, kind),
     onFirstToken: () => { if (firstTokenAt === null) firstTokenAt = performance.now(); },
     onDelta: (delta) => {
       if (firstSentenceAt !== null) return;
@@ -107,7 +113,11 @@ export async function runTurn(
         sentences: 0,
         error: aborted ? "cancelled" : (e as Error).message,
       };
-      try { sink!.clear(); } catch { /* best effort */ }
+      // Supersession clears the sink at the worker boundary before the new
+      // turn starts. An aborted old request no longer owns this shared sink.
+      if (!options?.signal?.aborted) {
+        try { sink!.clear(); } catch { /* best effort */ }
+      }
     }
   }
   const ttsMs = ttsEnabled ? Math.round(performance.now() - ttsStartedAt) : null;

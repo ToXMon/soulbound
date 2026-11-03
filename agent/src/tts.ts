@@ -1,7 +1,10 @@
-// tts: replaceable TTSProvider (D15) + pinned VoxCPM2 client + LiveKit egress.
-// VoxCPM2 is the explicitly approved speech renderer (D13/D15); it is not a
-// conversational model. No silent provider fallback: any failure throws and
-// the pipeline preserves the text conversation (Ticket 003 Gate C).
+// tts: replaceable TTSProvider (D15) + WAV-streaming TTS clients + LiveKit egress.
+// VoxCPM2 (OpenBMB) is the product speech renderer (D13/D15; owner reconfirmed
+// 2026-11-01 after the Meta MMS alternative failed the latency bar —
+// docs/030-mms-tts-swap.md §3). It is not a conversational model. MMS remains
+// an optional, clearly-labeled provider for local experiments. No silent
+// provider fallback: any failure throws and the pipeline preserves the text
+// conversation (Ticket 003 Gate C).
 import { AudioFrame, AudioSource, LocalAudioTrack } from "@livekit/rtc-node";
 import {
   BoundedPcmQueue,
@@ -11,6 +14,7 @@ import {
   TTS_CHANNELS,
   TTS_SAMPLE_RATE,
 } from "./tts-core.js";
+import { refAudioFromEnv } from "./tts-ref.js";
 
 export interface TtsFormat {
   sampleRate: number;
@@ -49,31 +53,27 @@ export class TtsError extends Error {
 }
 
 /**
- * Pinned vLLM-Omni VoxCPM2 client for POST /v1/audio/speech.
- * Live-verified contract (Gate B, dseq 29283087): the pinned server DROPS
- * response_format="pcm" streams (connection closed, "cancelled by client"
- * in server logs), while stream=true, stream_format="audio",
- * response_format="wav" streams a 44-byte WAV header followed by raw
- * 48 kHz mono s16le PCM, first byte well before synthesis ends. This client
- * validates and strips the header, then yields pure PCM. Model id must be
- * the served name "openbmb/VoxCPM2" ("voxcpm2" gets a 404).
+ * Shared WAV-streaming TTS client: POSTs an OpenAI-style /v1/audio/speech
+ * request whose server streams a 44-byte WAV header followed by raw 48 kHz
+ * mono s16le PCM (the server owns resampling to this format). The client
+ * validates and strips the header, then yields pure PCM incrementally.
  * Auth is a runtime Bearer secret; it never enters SDL, logs, or the browser.
  */
-export class VoxCpm2Provider implements TTSProvider {
-  readonly name = "voxcpm2-vllm-omni";
+abstract class WavStreamProvider implements TTSProvider {
+  abstract readonly name: string;
   readonly format = VOXCPM2_FORMAT;
 
   constructor(
     private baseUrl: string,
     private apiKey: string,
-    private model: string = "openbmb/VoxCPM2",
     private timeoutMs: number = 60000,
   ) {}
 
+  /** Provider-specific request body; performs input validation first. */
+  protected abstract payload(req: TtsRequest): Record<string, unknown>;
+
   async *synthesize(req: TtsRequest): AsyncIterable<Buffer> {
-    if (!req.text.trim()) throw new TtsError("VoxCPM2: refusing empty sentence");
-    if (!req.voiceDescription.trim()) throw new TtsError("VoxCPM2: voice description is required");
-    const input = `(${req.voiceDescription.trim()})${req.text.trim()}`;
+    if (!req.text.trim()) throw new TtsError(`${this.name}: refusing empty sentence`);
     const timeout = AbortSignal.timeout(this.timeoutMs);
     const signal = req.signal ? AbortSignal.any([req.signal, timeout]) : timeout;
     let res: Response;
@@ -85,28 +85,20 @@ export class VoxCpm2Provider implements TTSProvider {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.model,
-          input,
-          voice: "default", // required by the OpenAI schema; ignored by VoxCPM2
-          response_format: "wav", // live-verified streaming contract; header stripped below
-          stream: true,
-          stream_format: "audio",
-          ...(req.seed !== null ? { seed: req.seed } : {}),
-        }),
+        body: JSON.stringify(this.payload(req)),
       });
     } catch (e) {
-      throw new TtsError(`VoxCPM2 request failed: ${(e as Error).name}`);
+      throw new TtsError(`${this.name} request failed: ${(e as Error).name}`);
     }
     if (!res.ok) {
       // Never log the body verbatim if it could echo request data; status only.
-      throw new TtsError(`VoxCPM2 HTTP ${res.status}`, res.status);
+      throw new TtsError(`${this.name} HTTP ${res.status}`, res.status);
     }
     const ct = res.headers.get("content-type") ?? "";
     if (!/audio|octet-stream/.test(ct)) {
-      throw new TtsError(`VoxCPM2 unexpected content-type: ${ct || "(none)"}`);
+      throw new TtsError(`${this.name} unexpected content-type: ${ct || "(none)"}`);
     }
-    if (!res.body) throw new TtsError("VoxCPM2 returned no body");
+    if (!res.body) throw new TtsError(`${this.name} returned no body`);
     let first = true;
     let headerBuf: Buffer = Buffer.alloc(0);
     let headerDone = false;
@@ -125,7 +117,7 @@ export class VoxCpm2Provider implements TTSProvider {
           headerBuf = headerBuf.length ? Buffer.concat([headerBuf, chunk]) : chunk;
           const stripped = stripWavHeader(headerBuf);
           if (stripped === null) {
-            if (headerBuf.length > 8192) throw new TtsError("VoxCPM2 WAV header not found");
+            if (headerBuf.length > 8192) throw new TtsError(`${this.name} WAV header not found`);
             continue; // need more bytes to validate the header
           }
           headerDone = true;
@@ -135,13 +127,85 @@ export class VoxCpm2Provider implements TTSProvider {
         if (first) { first = false; req.onFirstChunk?.(); }
         yield chunk;
       }
-      if (!headerDone) throw new TtsError("VoxCPM2 stream ended before WAV header");
+      if (!headerDone) throw new TtsError(`${this.name} stream ended before WAV header`);
     } catch (e) {
       if ((e as Error).name === "AbortError") throw e;
-      throw new TtsError(`VoxCPM2 stream failed: ${(e as Error).name}`);
+      throw new TtsError(`${this.name} stream failed: ${(e as Error).name}`);
     } finally {
       reader.releaseLock();
     }
+  }
+}
+
+/**
+ * Pinned vLLM-Omni VoxCPM2 client — the product speech renderer (D13/D15,
+ * owner reconfirmed 2026-11-01). Model id must be the served name
+ * "openbmb/VoxCPM2" ("voxcpm2" gets a 404).
+ */
+export class VoxCpm2Provider extends WavStreamProvider {
+  readonly name = "voxcpm2-vllm-omni";
+
+  constructor(
+    baseUrl: string,
+    apiKey: string,
+    private model: string = "openbmb/VoxCPM2",
+    timeoutMs: number = 60000,
+    /**
+     * Opt-in synthetic reference data URI (Ticket 035). When set, the same
+     * ref_audio is passed in every synthesis request so VoxCPM2 binds
+     * timbre across turns. Loaded once at provider creation via
+     * tts-ref.loadRefAudio; never logged, never exposed to the browser.
+     * null = Voice Design only (previous behaviour).
+     */
+    private refAudio: string | null = null,
+  ) { super(baseUrl, apiKey, timeoutMs); }
+
+  protected payload(req: TtsRequest): Record<string, unknown> {
+    if (!req.voiceDescription.trim()) throw new TtsError("VoxCPM2: voice description is required");
+    const body: Record<string, unknown> = {
+      model: this.model,
+      input: `(${req.voiceDescription.trim()})${req.text.trim()}`,
+      voice: "default", // required by the OpenAI schema; ignored by VoxCPM2
+      response_format: "wav", // live-verified streaming contract; header stripped in base
+      stream: true,
+      stream_format: "audio",
+      ...(req.seed !== null ? { seed: req.seed } : {}),
+    };
+    if (this.refAudio) body.ref_audio = this.refAudio;
+    return body;
+  }
+}
+
+/**
+ * Self-hosted Meta MMS VITS TTS (facebook/mms-tts-eng): open-source Meta
+ * model, OPTIONAL alternative renderer — NOT the product default. Measured
+ * live on Akash CPU (2026-11-01): 98.7 s / 66.5 s / 9.4 s synthesis for short
+ * sentences across two nodes — far above the pinned VoxCPM2 latency metrics,
+ * so the owner rejected it for the product voice (docs/030 §3). VoxCPM2's
+ * one-shot contract means the first chunk arrives after synthesis completes.
+ * The serving container resamples MMS's native 16 kHz output to 48 kHz mono
+ * s16le; voice-description/seed are accepted and ignored (fixed voice).
+ */
+export class MmsTtsProvider extends WavStreamProvider {
+  readonly name = "meta-mms-tts-eng";
+
+  constructor(
+    baseUrl: string,
+    apiKey: string,
+    model: string = "facebook/mms-tts-eng",
+    timeoutMs: number = 60000,
+  ) { super(baseUrl, apiKey, timeoutMs); this.model = model; }
+  private model: string;
+
+  protected payload(req: TtsRequest): Record<string, unknown> {
+    return {
+      model: this.model,
+      input: req.text.trim(),
+      voice: "default", // required by the OpenAI schema; single MMS voice
+      response_format: "wav",
+      stream: true,
+      stream_format: "audio",
+    };
   }
 }
 
@@ -175,7 +239,21 @@ export function ttsProviderFromEnv(): TTSProvider | null {
   if (!base || !key) {
     throw new TtsError("TTS_BASE_URL and TTS_API_KEY must be set together (see .env.example)");
   }
-  return new VoxCpm2Provider(base, key, process.env.TTS_MODEL ?? "openbmb/VoxCPM2");
+  // TTS_PROVIDER selects the renderer. Default/production: "voxcpm2" (owner
+  // reconfirmed 2026-11-01). "mms" is an optional alternative rejected on
+  // latency (docs/030 §3) but kept for local experiments.
+  const kind = (process.env.TTS_PROVIDER ?? "voxcpm2").trim();
+  if (kind === "mms") {
+    return new MmsTtsProvider(base, key, process.env.TTS_MODEL ?? "facebook/mms-tts-eng");
+  }
+  if (kind === "voxcpm2") {
+    const refAudio = refAudioFromEnv();
+    if (refAudio) {
+      console.log("[tts] synthetic reference loaded (digest verified)");
+    }
+    return new VoxCpm2Provider(base, key, process.env.TTS_MODEL ?? "openbmb/VoxCPM2", 60000, refAudio);
+  }
+  throw new TtsError(`TTS_PROVIDER must be "mms" or "voxcpm2" (got "${kind}")`);
 }
 
 export interface TtsVoiceConfig {

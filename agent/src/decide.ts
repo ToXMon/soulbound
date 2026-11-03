@@ -1,11 +1,13 @@
 // decide: Muse Spark via the OpenAI SDK against the Meta Model API.
 // Model purity: muse-spark-1.3 only; never a -contributor variant.
 import OpenAI from "openai";
-import { recallForTurn } from "./memory/retrieval.js";
+import { recallForTurn, type RecallSource } from "./memory/retrieval.js";
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions";
 import { systemPrompt, type DiarizedTurn, type SpeakerKind } from "./orient.js";
+import type { SessionMessage, SpeakerHistory } from "./session-context.js";
 
 export interface TurnReply {
+  recallSources?: RecallSource[];
   text: string;
   model: string;
   latencyMs: number;
@@ -44,19 +46,42 @@ function spark(): OpenAI {
   return client;
 }
 
-export function conversationMessages(turn: DiarizedTurn, kind: SpeakerKind) {
+export function conversationMessages(
+  turn: DiarizedTurn,
+  kind: SpeakerKind,
+  sessionHistory?: SessionMessage[],
+  speakerHistory?: SpeakerHistory,
+  onRecall?: (sources: RecallSource[]) => void,
+) {
   const recall = recallForTurn(turn.text, kind);
+  onRecall?.(recall.sources ?? []);
   if (recall.recordIds.length) console.log(`[recall] record_ids=${JSON.stringify(recall.recordIds)}`);
-  return [
+  const msgs: { role: "system" | "user" | "assistant"; content: string }[] = [
     { role: "system" as const, content: systemPrompt(kind) + recall.context },
-    { role: "user" as const, content: turn.text },
   ];
+  // Ticket 036: inject prior session pairs between system and current user.
+  // Prior messages are data in their original roles, never system instructions.
+  const scoped = speakerHistory && turn.speaker &&
+    speakerHistory.speaker === turn.speaker && speakerHistory.kind === kind &&
+    (turn.confidence === undefined || (Number.isFinite(turn.confidence) && turn.confidence >= 0.5))
+    ? speakerHistory.messages : undefined;
+  const history = scoped ?? (kind === "owner" && !speakerHistory ? sessionHistory : undefined);
+  if (history && history.length > 0) {
+    for (const m of history) {
+      msgs.push({ role: m.role, content: m.content });
+    }
+  }
+  msgs.push({ role: "user" as const, content: turn.text });
+  return msgs;
 }
 
 export interface StreamCallbacks {
   onFirstToken?: () => void;
   onDelta?: (delta: string) => void | Promise<void>;
   signal?: AbortSignal;
+  /** Ticket 036: prior user/assistant pairs from the same session. */
+  sessionHistory?: SessionMessage[];
+  speakerHistory?: SpeakerHistory;
 }
 
 /**
@@ -72,12 +97,13 @@ export async function decideStream(
   const model = process.env.MODEL_NAME ?? "muse-spark-1.3";
   if (model.includes("contributor")) throw new Error(`refusing contributor-tier model: ${model}`);
   const t0 = performance.now();
+  let recallSources: RecallSource[] = [];
   const stream = await spark().chat.completions.create(
     {
       model,
       stream: true,
       reasoning_effort: reasoningEffort() as unknown as ChatCompletionReasoningEffort,
-      messages: conversationMessages(turn, kind),
+      messages: conversationMessages(turn, kind, cb.sessionHistory, cb.speakerHistory, sources => { recallSources = sources; }),
     },
     cb.signal ? { signal: cb.signal } : undefined,
   );
@@ -94,19 +120,24 @@ export async function decideStream(
   }
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Spark returned an empty reply");
-  return { text: trimmed, model: resolvedModel, latencyMs: performance.now() - t0 };
+  return { text: trimmed, model: resolvedModel, latencyMs: performance.now() - t0, recallSources };
 }
 
-export async function decide(turn: DiarizedTurn, kind: SpeakerKind): Promise<TurnReply> {
+export async function decide(
+  turn: DiarizedTurn,
+  kind: SpeakerKind,
+  sessionHistory?: SessionMessage[],
+): Promise<TurnReply> {
   const model = process.env.MODEL_NAME ?? "muse-spark-1.3";
   if (model.includes("contributor")) throw new Error(`refusing contributor-tier model: ${model}`);
   const t0 = performance.now();
+  let recallSources: RecallSource[] = [];
   const res = await spark().chat.completions.create({
     model,
     reasoning_effort: reasoningEffort() as unknown as ChatCompletionReasoningEffort,
-    messages: conversationMessages(turn, kind),
+    messages: conversationMessages(turn, kind, sessionHistory, undefined, sources => { recallSources = sources; }),
   });
   const text = res.choices[0]?.message?.content?.trim();
   if (!text) throw new Error("Spark returned an empty reply");
-  return { text, model: res.model ?? model, latencyMs: performance.now() - t0 };
+  return { text, model: res.model ?? model, latencyMs: performance.now() - t0, recallSources };
 }

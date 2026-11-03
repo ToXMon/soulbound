@@ -37,7 +37,11 @@ export class VoiceTranscribeStream {
   private streamError: Error | null = null;
   sessionId: string | null = null;
 
-  constructor(private onTurn: (turn: DiarizedTurn, sttMs: number, vtTiming?: VtTiming) => void) {}
+  private closing = false;
+  constructor(
+    private onTurn: (turn: DiarizedTurn, sttMs: number, vtTiming?: VtTiming) => void | Promise<void>,
+    private onFailure: (code: "turn-failed" | "transcription-closed" | "transcription-failed") => void = () => {},
+  ) {}
 
   get encoding(): string {
     return process.env.MUSE_VT_ENCODING ?? "PCM_16KHZ";
@@ -74,11 +78,13 @@ export class VoiceTranscribeStream {
     }
     // sttMs kept for harness compatibility: it is utterance/VT elapsed
     // (speechStart -> speechComplete), not post-speech recognition delay.
-    this.onTurn(
-      { speaker: pending.speaker, text: pending.text.trim() },
-      vtTiming.utteranceElapsedMs ?? 0,
-      vtTiming,
-    );
+    try {
+      Promise.resolve(this.onTurn(
+        { speaker: pending.speaker, text: pending.text.trim() },
+        vtTiming.utteranceElapsedMs ?? 0,
+        vtTiming,
+      )).catch(() => this.onFailure("turn-failed"));
+    } catch { this.onFailure("turn-failed"); }
   }
 
   private pendingFor(id: string): PendingTurn {
@@ -171,7 +177,14 @@ export class VoiceTranscribeStream {
           break; // session / progress: lifecycle only
       }
     });
-    ws.on("close", () => { this.ws = null; });
+    ws.on("error", () => {
+      this.streamError = new Error("Speech recognition connection failed");
+      if (!this.closing) this.onFailure("transcription-failed");
+    });
+    ws.on("close", () => {
+      this.ws = null;
+      if (!this.closing) this.onFailure(this.streamError ? "transcription-failed" : "transcription-closed");
+    });
   }
 
   sendAudio(pcm: Buffer | Uint8Array): void {
@@ -194,5 +207,5 @@ export class VoiceTranscribeStream {
     if (this.streamError) throw this.streamError;
   }
 
-  close(): void { this.ws?.close(); this.ws = null; }
+  close(): void { this.closing = true; this.ws?.close(); this.ws = null; }
 }

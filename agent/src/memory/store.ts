@@ -4,7 +4,7 @@
 // atomic (tmp + fsync + rename). Corrupt history throws; it is never overwritten.
 // Single writer per namespace, enforced cross-process by an O_EXCL lock file
 // (writer.lock, holder pid recorded); a lock whose pid is dead is recovered.
-import { mkdir, readFile, rename, rm, writeFile, open, type FileHandle } from "node:fs/promises";
+import { mkdir, readFile, readlink, stat, rename, rm, writeFile, open, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { keccakHex, contentHash, merkleRoot, merkleProof, verifyProof, type MerkleProof } from "./merkle.js";
@@ -68,6 +68,20 @@ export function validateStoreFile(file: StoreFile, ns: Namespace): void {
   });
 }
 
+async function processIdentity(pid: number): Promise<string | null> {
+  if (process.platform !== "linux") return null;
+  try {
+    const [boot, namespace, status] = await Promise.all([
+      readFile("/proc/sys/kernel/random/boot_id", "utf8"),
+      readlink(`/proc/${pid}/ns/pid`),
+      readFile(`/proc/${pid}/stat`, "utf8"),
+    ]);
+    const start = status.slice(status.lastIndexOf(")") + 2).split(" ")[19];
+    if (!start || !/^\d+$/.test(start)) return null;
+    return `${boot.trim()}:${namespace}:${start}`;
+  } catch { return null; }
+}
+
 function pidAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === "EPERM"; }
 }
@@ -85,15 +99,25 @@ export class MemoryStore {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const fh = await open(lockPath, "wx", 0o600);
-        await fh.writeFile(JSON.stringify({ pid: process.pid, since: new Date().toISOString() }), "utf8");
+        await fh.writeFile(JSON.stringify({ pid: process.pid, since: new Date().toISOString(), processIdentity: await processIdentity(process.pid) }), "utf8");
         await fh.sync();
         return fh;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+        const before = await stat(lockPath);
         let holderPid = 0;
-        try { holderPid = (JSON.parse(await readFile(lockPath, "utf8")) as { pid?: number }).pid ?? 0; } catch { /* unreadable */ }
-        if (!holderPid || holderPid === process.pid || pidAlive(holderPid))
+        let identity: string | null = null;
+        try {
+          const holder = JSON.parse(await readFile(lockPath, "utf8")) as { pid?: number; processIdentity?: string };
+          holderPid = holder.pid ?? 0;
+          identity = typeof holder.processIdentity === "string" ? holder.processIdentity : null;
+        } catch { /* unreadable locks remain protected */ }
+        const currentIdentity = holderPid > 0 ? await processIdentity(holderPid) : null;
+        const differentLifetime = identity !== null && currentIdentity !== null && identity !== currentIdentity;
+        if (!holderPid || (!differentLifetime && pidAlive(holderPid)))
           throw new Error(`memory store: writer lock held by pid ${holderPid || "unknown"} — single-writer per namespace; refusing competing writer`);
+        const after = await stat(lockPath);
+        if (before.ino !== after.ino || before.dev !== after.dev) throw new Error("memory store: lock changed during recovery; retry");
         await rm(lockPath, { force: true }); // stale lock from a dead process: recover and retry
       }
     }

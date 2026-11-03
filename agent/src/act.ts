@@ -11,6 +11,7 @@ export interface TtsTurnStatus {
 }
 
 export interface TurnRecord {
+  recallSources?: TurnReply["recallSources"];
   diarized: boolean;
   speaker: string | null;
   kind: SpeakerKind;
@@ -39,6 +40,7 @@ export function act(
     transcript: turn.text,
     reply: reply.text,
     model: reply.model,
+    ...(reply.recallSources ? { recallSources: reply.recallSources } : {}),
     sttToReplyMs: Math.round(sttMs + reply.latencyMs),
     ...(timing ? { timing } : {}),
     ...(diag !== undefined ? { diag } : {}),

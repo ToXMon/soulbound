@@ -11,8 +11,14 @@ import { randomUUID } from "node:crypto";
 import { memoryConfigFromEnv } from "./memory/config.js";
 import { MemoryStore } from "./memory/store.js";
 import { bindRecallStore } from "./memory/retrieval.js";
+import { SpeakerSessions } from "./session-context.js";
 import { MemoryQueue } from "./memory/queue.js";
 import { SparkExtractor, type SourceTurn } from "./memory/extract.js";
+import { createMetaSamClient } from "./vision/sam.js";
+import { createSparkObserver } from "./vision/spark.js";
+import { handleVisionFrame, VISION_FRAME_TOPIC, VISION_OBSERVATION_TOPIC } from "./vision/handler.js";
+import { observationToExtraction } from "./memory/observation.js";
+import { VisionSidecarStore } from "./memory/vision-sidecar.js";
 
 export default defineAgent({
   entry: async (ctx) => {
@@ -32,6 +38,8 @@ export default defineAgent({
     let memoryStore: MemoryStore | null = null;
     const sessionId = randomUUID();
     let turnSeq = 0;
+    // Ticket 036: per-room-job bounded session context (ephemeral, never sealed).
+    const sessionCtx = new SpeakerSessions();
     if (memCfg) {
       memoryStore = await MemoryStore.open(memCfg.storePath, memCfg.namespace);
       bindRecallStore(memoryStore);
@@ -54,14 +62,21 @@ export default defineAgent({
       pendingDiag = null;
       // New turn supersedes any speech still synthesizing: cancel, never queue stale audio.
       turnAbort?.abort();
-      turnAbort = new AbortController();
+      publisher?.clear();
+      const controller = new AbortController();
+      turnAbort = controller;
+      try {
       const rec = await runTurn(turn, sttMs, {
         vtTiming, diag,
         tts: ttsProvider,
         voice,
         sink: publisher,
-        signal: turnAbort.signal,
+        signal: controller.signal,
+        speakerSessions: sessionCtx,
       });
+      if (controller.signal.aborted || turnAbort !== controller) return;
+      // Ticket 036: append completed turn to session context (ephemeral, not sealed memory).
+      sessionCtx.append(turn, rec.kind, rec.reply);
       const data = new TextEncoder().encode(JSON.stringify(rec));
       const publishStart = performance.now();
       await ctx.agent?.publishData(data, { reliable: true, topic: "turn" });
@@ -87,8 +102,82 @@ export default defineAgent({
         }));
         await ctx.agent?.publishData(followUp, { reliable: true, topic: "latency-publish" });
       }
+      } catch {
+        if (!controller.signal.aborted && turnAbort === controller) {
+          console.error("[voice] turn failed; next turn remains available");
+          await ctx.agent?.publishData(new TextEncoder().encode(JSON.stringify({ code: "turn-failed" })),
+            { reliable: true, topic: "voice-status" }).catch(() => undefined);
+        }
+      }
+    }, (code) => {
+      console.error(`[voice] ${code}`);
+      void ctx.agent?.publishData(new TextEncoder().encode(JSON.stringify({ code })),
+        { reliable: true, topic: "voice-status" }).catch(() => undefined);
     });
-    ctx.room.on(RoomEvent.DataReceived, (payload: Uint8Array, _p: unknown, _k: unknown, topic?: string) => {
+    // Ticket 008: explicit-trigger vision. The browser publishes exactly one
+    // JSON envelope per "look at this" click on `vision-frame`; the handler
+    // validates, serializes one in-flight trigger per sender, runs one SAM +
+    // one Spark call, persists via the existing MemoryStore path plus the
+    // private vision sidecar (only when memory is enabled), and publishes a
+    // metadata-only observation on `vision-observation` only after durable
+    // linkage. Identity here is the self-asserted LiveKit participant name —
+    // participant-triggered demo access, NOT owner authentication (the token
+    // route signs any caller-supplied name). Any connected participant with a
+    // nonempty identity may trigger; admission is the nonempty-identity check
+    // plus the per-sender in-flight gate (see handler.ts). No sender allowlist.
+    // Sidecar atomicity boundary: store append and sidecar link are sequential
+    // (the frozen store protocol has no joint transaction); a link failure
+    // returns ok:false with only a metadata-only failure packet, so durable
+    // success is never misclaimed and the browser never waits forever.
+    const visionApiKey = process.env.MODEL_API_KEY ?? process.env.META_API_KEY;
+    const visionSam = createMetaSamClient({ apiKey: visionApiKey, concept: process.env.VISION_SAM_CONCEPT?.trim() || "object" });
+    const visionSpark = createSparkObserver({ apiKey: visionApiKey });
+    const visionCharacterId = memCfg?.namespace.characterId ?? process.env.VISION_CHARACTER_ID?.trim() ?? "";
+    const visionSidecar = memoryStore && memCfg ? await VisionSidecarStore.open(memCfg.storePath, memCfg.namespace) : null;
+    ctx.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant: unknown, _k: unknown, topic?: string) => {
+      if (topic === VISION_FRAME_TOPIC) {
+        const p = participant as { identity?: unknown } | null | undefined;
+        const identity = typeof p?.identity === "string" ? p.identity : undefined;
+        void handleVisionFrame(payload, identity, {
+          sam: visionSam,
+          spark: visionSpark,
+          characterId: visionCharacterId,
+          publish: async (data) => {
+            await ctx.agent?.publishData(data, { reliable: true, topic: VISION_OBSERVATION_TOPIC });
+          },
+          persist: memoryStore
+            ? async (record) => {
+              // source_turn_id binds trigger + frame. Same-trigger replay is
+              // idempotent; a later explicit look at identical pixels is a
+              // distinct observation and memory record.
+              const extraction = observationToExtraction(record);
+              const sourceTurnId = extraction.source_turn_ids[0]!;
+              const created = await memoryStore.appendExtracted(sourceTurnId, [extraction]);
+              if (created[0]) return created[0].id;
+              // Idempotent replay (same trigger redelivered, e.g. after a
+              // sidecar failure): appendExtracted returned [] without creating
+              // a record. Locate the exact record by source_turn_id — the
+              // same value the extraction carries — not by bare frame_hash.
+              // Take the most recent match: a replayed trigger's record is
+              // the latest one carrying that link (an earlier trigger may
+              // have stored the same frame under its own trigger id).
+              const matches = memoryStore.records.filter((r) => r.provenance.turn_ids.includes(sourceTurnId));
+              const found = matches[matches.length - 1];
+              if (!found) throw new Error("vision persist replayed without creating or finding a record");
+              return found.id;
+            }
+            : undefined,
+          linkSidecar: visionSidecar
+            ? async (entry) => {
+              await visionSidecar.link(entry);
+            }
+            : undefined,
+        }).then((outcome) => {
+          if (outcome.ok) console.log(`[vision] observed trigger=${outcome.triggerId} frame=${outcome.frameHash} durable=${outcome.durable} sender=${identity ?? "?"}`);
+          else console.log(`[vision] rejected sender=${identity ?? "?"} code=${outcome.code}`);
+        });
+        return;
+      }
       if (topic !== "latency-diag") return;
       try {
         const msg = JSON.parse(new TextDecoder().decode(payload)) as { type?: string; runId?: string; turnId?: string };
@@ -132,6 +221,7 @@ export default defineAgent({
     await vt.connect();
     ctx.addShutdownCallback(async () => {
       bindRecallStore(null);
+      sessionCtx.reset();
       turnAbort?.abort();
       vt.close();
       if (publisher) await publisher.close();
