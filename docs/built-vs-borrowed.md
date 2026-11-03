@@ -23,4 +23,14 @@ else in the repo is new work written for SOULBOUND.
 | Keccak-256 hashing (`js-sha3`) | `js-sha3` (MIT, maintained) | Library dependency | Node has sha3-256, not Keccak-256; smallest maintained direct dependency for the frozen Merkle protocol (docs/memory-schema.md). |
 | Durable memory store, Spark structured extraction, bounded job queue, Merkle manifests/proofs (Ticket 004) | — | **Built for SOULBOUND** | `agent/src/memory/`, `agent/scripts/memory-demo.mjs`, `docs/memory-schema.md`. Off-chain only; nothing on-chain yet. |
 
-Not borrowed, not present: anything on-chain (memory roots arrive with Ticket 005), Muse Image.
+## Current implementation status (2026-11-02)
+
+Solana identity and memory-root anchoring are implemented; the older table entries describe when individual components first landed, not the current feature boundary. See `docs/devnet.md` and `docs/029-memory-identity-linkage.md` for program pins, transactions and observed inclusion/tamper results. The memory store is off-chain; its committed roots and history are on devnet.
+
+The current room has real received-audio playback, a procedural Warden and an alternate 2D portrait. It is no longer the text-only placeholder described in the original UI row. Warden's visual references and attribution are recorded in `docs/024-third-party-notices.md`; portrait provenance and limitations are in `docs/022-living-portrait-verification.md`.
+
+SAM 3.1 uses the pinned `@meta-sam/parser` dependency plus SOULBOUND's explicit-trigger, correlation and memory-sidecar integration. Useful live object-recognition acceptance remains open; synthetic fixtures are not model results. Muse Image anchored genesis/variation work is not established by the reactive portrait.
+
+VoxCPM2 remains the selected speech renderer. The deployed client uses the verified WAV-stream contract, strips the header and publishes PCM through LiveKit. Meta MMS is an unsuccessful optional latency experiment, not the selected product renderer. See `docs/030-mms-tts-swap.md`.
+
+For judge setup, sample-input labels and a current claim-to-evidence table, use the root README. Do not infer completion of Arcium, x402 payments, live heartbeat rewards or judge minting from the architecture plan.

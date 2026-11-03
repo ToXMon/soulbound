@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-11-01T18:30:43.245Z",
+  "url": "https://relatives-wonderful-content-institution.trycloudflare.com/",
+  "syntheticInput": true,
+  "physicalDevicesUsed": false,
+  "replyAudioMaxRms": 0.08418151976360212,
+  "measurementCount": 1145,
+  "transcriptAndReply": "SOULBOUND\nLife & proof\n↗\nWarden\nPortrait\nREADY\nWarden · static / reduced motion\n↗\nLeave\n↵\nStart audio ↗\nMute mic\nSpeaker mode · moderate volume\n\nConnected. Speak — your words will appear below.\n\nCharacter audio: TTS ok (1 sentence(s) via voxcpm2-vllm-omni).\n\nSpeaker & microphone settings\n\nA PERSISTENT VOICE + VISION CHARACTER\n\nTalk to it.\nAnd it changes.\n\n— and every change is provable.\n\nThe conversation\nLIVE TRANSCRIPT\nLive response model: muse-spark-1.3\nTurn cost: unavailable\n\nArchitecture (not live health): Meta Voice Transcribe · Meta Spark conversation/vision · SAM 3.1 segmentation adapter integrated, live configuration/entitlement unverified · VoxCPM2 voice synthesis by OpenBMB (not Meta).\n\ndiarized speaker=A (owner)\nHello, this is a synthetic deployment test please tell me your name in one short sentence.\nSOULBOUND · muse-spark-1.3\nI'm Soulbound.\ndiarized speaker=A (owner)\nHello, this is a synthetic deployment test please tell me your name in one short sentence.\nSOULBOUND · muse-spark-1.3\nMy name is SOULBOUND.\nA look, not a live feed\nEXPLICIT CAPTURE\n\nNothing is captured or sent before your click. One frame goes to SAM 3.1 segmentation and Meta Spark vision. Camera tracks stop after capture; the local still stays only until discarded, next look, or disconnect.\n\nGuest room access is not owner authentication. Do not show sensitive material.\n\nLook at thisDiscard view\n\nVision idle — no camera or vision request before click.\n\nRoom diagnostics\nTiming, quality & export ＋\nSOULBOUND / A CONTINUITY EXPERIMENT\nWarden is procedural, not a likeness rig.",
+  "statuses": [
+    "Ready",
+    "Connected. Speak — your words will appear below.",
+    "Character audio: TTS ok (1 sentence(s) via voxcpm2-vllm-omni).",
+    "Vision idle — no camera or vision request before click."
+  ],
+  "limitations": [
+    "Synthetic speech, not human rehearsal",
+    "Playback muted during automated check",
+    "Reduced-motion mode active",
+    "Vision not tested"
+  ]
+}

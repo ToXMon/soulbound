@@ -99,13 +99,25 @@ Observed on-chain after the mint:
 - owner ATA holds exactly `1` (decimals 0); mint authority revoked
 - config PDA owned by the program, 154 bytes, `life_stage=Born`, `memory_epoch=0`
 
+## Ticket 007 heartbeat — local implementation only, not deployed
+
+Ticket 007's local implementation adds one `Born` → `Awakened` transition. The crank counts actual `MemoryRootHistory.entries` (not numeric epoch IDs) and becomes eligible at `Clock.unix_timestamp >= first_entry.timestamp + 60`, using checked timestamp arithmetic. In the same atomic instruction it updates `CharacterConfig.life_stage`, the Core Attributes `life_stage`, and transfers one reward unit to the permissionless caller. `CharacterConfig` remains 154 bytes; no transition-consumed state account is needed.
+
+Reward setup is **not performed or approved**. The program has an immutable `HeartbeatRewardConfig` PDA (`[b"heartbeat_reward", config]`) that binds the owner-selected legacy SPL mint; the config PDA controls its associated-token vault. No mint address is pinned here. The planned operator sequence, pending a separate exact-action approval, is:
+
+1. Create a new legacy SPL mint with 0 decimals, zero initial supply, the owner as mint authority, and **no freeze authority**.
+2. Owner calls `initialize_heartbeat_reward` with: config PDA, owner signer/payer, reward-config PDA, reward mint, vault ATA (authority = config PDA), legacy Token Program, Associated Token Program, and System Program. This creates the immutable mint binding and vault ATA.
+3. Owner mints exactly 1 unit to that vault ATA, then revokes mint authority. The initializer and crank reject any mint with a freeze authority. The crank also checks mint supply = 1, decimals = 0, mint and freeze authorities revoked, and vault balance = 1; the program exposes no withdrawal or mint instruction.
+
+No **live/devnet** mint, vault ATA, transaction signature, rent/fee quote, or crank is recorded: none has been created, queried, funded, or broadcast. Only synthetic in-memory LiteSVM fixtures exist. Before setup, the operator must present Tolu the actual mint/account addresses, current rent and transaction fees, all signers, and maximum SOL exposure. A live crank also requires the caller-funded reward ATA and may require Core asset rent top-up as its `life_stage` attribute grows from `born` to `awakened`; that cost must be quoted before approval. Local LiteSVM synthetic mint fixtures are test-only and do not establish a live mint or live acceptance.
+
 ## Verification commands
 
 ```bash
 # program is executable on devnet
 solana program show BdswGigVwzuRjcbj2XMsNHTGB37pCaPQquq8v1tAqJZd --url devnet
 
-# local LiteSVM suite (REQ-01, 02, 03, 05, 06, 07)
+# local LiteSVM suite (REQ-01..07, 10..13, 20..22, 30..32)
 cd programs/soulbound && anchor build && cargo test -p tests -- --nocapture --test-threads=1
 ```
 

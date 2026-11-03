@@ -74,3 +74,36 @@ evidence before REQ-41 can pass:
 
 `TTS_BASE_URL`, `TTS_API_KEY` (secret), `TTS_MODEL=openbmb/VoxCPM2`,
 `TTS_VOICE_DESCRIPTION`, `TTS_SEED`.
+
+### Approved synthetic reference (Ticket 035)
+
+Tolu approved the two fixed-reference comparison clips on 2026-11-02. Activate this exact generated SOULBOUND reference, not a new sample or a real person's recording:
+
+- SHA256: `bff761c93db7cc2581ce64ab61c04e817bfef0745b5cb0d7d94a184e909f6a64`.
+- Source: VoxCPM2-generated character speech, voice A, seed 42.
+- Approval covers the presented speaker and sound. Live multi-turn smoothness, interruption and restart consistency remain separate checks.
+
+### Synthetic reference configuration
+
+When `TTS_REF_AUDIO_PATH` and `TTS_REF_AUDIO_DIGEST` are both set, the
+VoxCPM2 provider loads the local WAV once at startup, validates the
+SHA256 digest, and passes the same `ref_audio` data URI in every
+synthesis request. This binds timbre across turns — the upstream
+`ref_audio` parameter conditions the VoxCPM2 speaker embedding on the
+provided audio, unlike Voice Design alone which samples independently.
+
+| Variable | Purpose |
+| --- | --- |
+| `TTS_REF_AUDIO_PATH` | Absolute path to a local WAV reference file (≤ 10 MB) |
+| `TTS_REF_AUDIO_DIGEST` | Expected hex SHA256 of the file (64 chars) |
+
+- Both must be set together or both empty. Any misconfiguration fails
+  loudly at startup — there is no silent fallback to randomized Voice
+  Design when reference is configured but invalid.
+- The file is read once; the data URI is held in memory for the
+  provider lifetime. It is never logged, never published to the
+  browser, and never committed to the repo.
+- When neither var is set, the existing pure Voice Design path runs
+  unchanged.
+- This is for synthetic/generated character references only.
+  Real-person voice cloning is not authorized (Ticket 035).
