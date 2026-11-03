@@ -41,7 +41,22 @@ export default defineAgent({
     // Ticket 036: per-room-job bounded session context (ephemeral, never sealed).
     const sessionCtx = new SpeakerSessions();
     if (memCfg) {
-      memoryStore = await MemoryStore.open(memCfg.storePath, memCfg.namespace);
+      // Live finding 2026-11-03: a second session (new tab, judge, or a room
+      // that is still draining) hit the single-writer lock and the whole job
+      // died, so the guest got no character at all. Wait briefly for a closing
+      // session, then run THIS session without durable memory rather than
+      // failing voice and vision. The single-writer guarantee is unchanged.
+      for (let attempt = 0; attempt < 20 && !memoryStore; attempt++) {
+        try {
+          memoryStore = await MemoryStore.open(memCfg.storePath, memCfg.namespace);
+        } catch (e) {
+          if (!/writer lock held/.test((e as Error).message)) throw e;
+          if (attempt === 19) console.log("[memory] DISABLED for this session: another live session holds the single writer lock; voice and vision continue without durable memory");
+          else await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+    }
+    if (memCfg && memoryStore) {
       bindRecallStore(memoryStore);
       memoryQueue = new MemoryQueue(memoryStore, new SparkExtractor(), { capacity: memCfg.capacity, timeoutMs: memCfg.timeoutMs });
       console.log(`[memory] enabled character=${memCfg.namespace.characterId} records=${memoryStore.stats().records}`);

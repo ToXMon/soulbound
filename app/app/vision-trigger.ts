@@ -34,6 +34,23 @@ export interface VisionFrameTransport {
 
 export type VisionStatus = "idle" | "capturing" | "sent" | "observed" | "failed" | "unavailable";
 
+/** Why a look ended "unavailable". Stable, non-sensitive categories only. */
+export type VisionUnavailableReason =
+  | "camera-denied" | "no-camera" | "camera-timeout" | "frame-too-large"
+  | "send-failed" | "no-response" | "disconnected" | "unknown";
+
+export function classifyVisionError(e: unknown): VisionUnavailableReason {
+  const name = (e as { name?: string } | null)?.name ?? "";
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (name === "NotAllowedError" || name === "SecurityError") return "camera-denied";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "no-camera";
+  if (name === "NotReadableError" || /capture timeout/.test(msg)) return "camera-timeout";
+  if (/exceeds|too large|fit/i.test(msg)) return "frame-too-large";
+  if (/publish timeout/.test(msg)) return "send-failed";
+  if (/disconnected/.test(msg)) return "disconnected";
+  return "unknown";
+}
+
 /** Stable agent failure codes the worker may report after a trigger is
  * established. Coarse by design: no error text, no internals, no content. */
 export const VISION_FAILURE_CODES = ["observation-failed", "persist-failed", "sidecar-failed"] as const;
@@ -178,6 +195,7 @@ export class VisionTrigger {
    * look() so late frames never publish and orphaned state never resurrects. */
   private _generation = 0;
   private responseTimer: ReturnType<typeof setTimeout> | undefined;
+  private unavailableReason: VisionUnavailableReason | null = null;
   private clearResponseTimer(): void {
     clearTimeout(this.responseTimer);
     this.responseTimer = undefined;
@@ -210,6 +228,8 @@ export class VisionTrigger {
   /** Stable agent failure code of the last failed trigger, or null. The UI
    * shows a generic failure message; the code exists for correlation only. */
   get currentFailureCode(): string | null { return this.failureCode; }
+  /** Category of the last "unavailable" outcome, or null. UI-only guidance. */
+  get currentUnavailableReason(): VisionUnavailableReason | null { return this.unavailableReason; }
 
   private set(s: VisionStatus) {
     this.status = s;
@@ -240,6 +260,7 @@ export class VisionTrigger {
     this.pendingTriggerId = null;
     this.view = null;
     this.failureCode = null;
+    this.unavailableReason = null;
     this.deps.onView?.(null);
     this.set("capturing");
     const gen = ++this._generation;
@@ -257,7 +278,7 @@ export class VisionTrigger {
           return bytes;
         });
         frame = await Promise.race([capture, new Promise<never>((_, reject) => {
-          captureTimer = setTimeout(() => reject(new Error("capture timeout")), this.deps.captureTimeoutMs ?? 12000);
+          captureTimer = setTimeout(() => reject(new Error("capture timeout")), this.deps.captureTimeoutMs ?? 30000);
         })]);
       } finally { clearTimeout(captureTimer); }
       // Generation check: if discard() was called during capture, do not
@@ -288,16 +309,18 @@ export class VisionTrigger {
         if (gen !== this._generation || this.status !== "sent") return;
         this._generation++;
         this.pendingTriggerId = null;
+        this.unavailableReason = "no-response";
         this.set("unavailable");
       }, this.deps.responseTimeoutMs ?? 30000);
       (this.responseTimer as unknown as { unref?: () => void }).unref?.();
-    } catch {
+    } catch (e) {
       // Only update state if our generation is still current, so a late
       // discard/takeover during async work doesn't overwrite set status.
       if (gen === this._generation) {
         this._generation++;
         this.deps.source.cancel?.();
         this.pendingTriggerId = null;
+        this.unavailableReason = classifyVisionError(e);
         this.set("unavailable");
       }
     } finally {

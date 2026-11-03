@@ -14,7 +14,7 @@ import { LivingPortrait } from "@/components/living-portrait";
 import type { PortraitState } from "@/components/living-portrait";
 import avatar from "@/assets/soulbound-avatar-meta-preview.webp";
 import styles from "./room.module.css";
-import { VisionTrigger, type VisionObservationView, type VisionStatus } from "./vision-trigger";
+import { VisionTrigger, type VisionObservationView, type VisionStatus, type VisionUnavailableReason } from "./vision-trigger";
 import { fitVisionFrame } from "./vision-frame";
 import { MICROPHONE_PROCESSING, microphoneReport } from "./speaker-mode";
 
@@ -72,6 +72,19 @@ function newId(prefix: string): string {
   const c = globalThis.crypto as Crypto | undefined;
   const rand = c?.randomUUID ? c.randomUUID() : Math.random().toString(36).slice(2, 10);
   return `${prefix}-${rand}`;
+}
+
+function describeVisionReason(reason: VisionUnavailableReason | null): string {
+  switch (reason) {
+    case "camera-denied": return "the browser blocked the camera. Click the camera icon in the address bar, allow it for this site, then try again.";
+    case "no-camera": return "no camera was found on this device.";
+    case "camera-timeout": return "the camera did not start in time (permission prompt unanswered, or another app is using it). Allow the prompt and try again.";
+    case "frame-too-large": return "the captured frame was too large to send.";
+    case "send-failed": return "the frame could not be sent to the room.";
+    case "disconnected": return "the room disconnected during the look. Rejoin and try again.";
+    case "no-response": return "the frame was sent but the character did not answer in 30 seconds. It may not be in the room: Leave, rejoin, and try again.";
+    default: return "the look did not complete.";
+  }
 }
 
 export default function Page() {
@@ -869,7 +882,7 @@ export default function Page() {
           {visionStatus === "capturing" && "Capturing one frame…"}
           {visionStatus === "sent" && "Frame sent once; waiting for observation. No automatic retries."}
           {visionStatus === "failed" && "That look did not complete. Private memory linkage was not confirmed; no saved observation is claimed."}
-          {visionStatus === "unavailable" && "Vision unavailable — camera denied, disconnected, timed out, or path not configured. No success claimed."}
+          {visionStatus === "unavailable" && `Vision unavailable — ${describeVisionReason(visionTriggerRef.current?.currentUnavailableReason ?? null)} No success claimed.`}
           {visionStatus === "observed" && (visionView?.durable ? "Observation received and linked to private memory." : "Observation received; not saved to durable memory.")}
         </p>
         {visionView && (

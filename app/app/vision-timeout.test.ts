@@ -75,3 +75,33 @@ test("discard during capture cancels hardware and ignores late completion", asyn
   assert.equal(cancelled, 1);
   assert.equal(trigger.currentStatus, "idle");
 });
+
+test("unavailable outcomes carry a specific, non-sensitive reason", async () => {
+  const { classifyVisionError } = await import("./vision-trigger.js");
+  assert.equal(classifyVisionError(Object.assign(new Error("x"), { name: "NotAllowedError" })), "camera-denied");
+  assert.equal(classifyVisionError(Object.assign(new Error("x"), { name: "NotFoundError" })), "no-camera");
+  assert.equal(classifyVisionError(new Error("capture timeout")), "camera-timeout");
+  assert.equal(classifyVisionError(new Error("publish timeout")), "send-failed");
+  assert.equal(classifyVisionError(new Error("envelope 60000B exceeds 49152B limit")), "frame-too-large");
+  assert.equal(classifyVisionError(new Error("disconnected")), "disconnected");
+  assert.equal(classifyVisionError(new Error("???")), "unknown");
+});
+
+test("a missing observation reports no-response and a camera timeout reports camera-timeout", async () => {
+  const trigger = new VisionTrigger({
+    source: { capture: async () => new Promise<Uint8Array>(() => undefined), cancel() {} },
+    transport: { publishFrame: async () => undefined },
+    onStatus() {}, captureTimeoutMs: 15,
+  });
+  await trigger.look();
+  assert.equal(trigger.currentStatus, "unavailable");
+  assert.equal(trigger.currentUnavailableReason, "camera-timeout");
+  const silent = new VisionTrigger({
+    source: { capture: async () => new Uint8Array([1, 2, 3]), cancel() {} },
+    transport: { publishFrame: async () => undefined },
+    onStatus() {}, responseTimeoutMs: 20,
+  });
+  await silent.look();
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(silent.currentUnavailableReason, "no-response");
+});
