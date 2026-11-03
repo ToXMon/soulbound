@@ -1,0 +1,11 @@
+services:
+  livekit:
+    platform: linux/amd64
+    image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+    command: ["--dev", "--bind", "0.0.0.0", "--node-ip", "127.0.0.1"]
+    ports:
+      - "127.0.0.1:7880:7880/tcp"
+      - "127.0.0.1:7881:7881/tcp"
+      - "127.0.0.1:7882:7882/udp"
+# Local development only. --dev uses LiveKit's PUBLIC devkey / secret pair.
+# Never expose this server or those credentials to the public internet.
