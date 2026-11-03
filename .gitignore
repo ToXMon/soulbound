@@ -38,5 +38,16 @@ audit/*/raw/
 memory-store/
 */memory-store/
 
+# isolated agent worktrees (never stage as nested repository content)
+.agents/worktrees/
+
+# generated Next build variants and cached third-party skill bundles
+.next-*/
+app/.next-*/
+.atskills/
+
+# machine-local tooling config
+.backpassrc.json
+
 # OS
 .DS_Store
