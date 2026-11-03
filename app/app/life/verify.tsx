@@ -4,8 +4,8 @@ import type { ProofResult } from "./read";
 import styles from "./life.module.css";
 
 type Memory = { id: string; epoch: number; hash: string; root: string };
-export default function Verify({ memories, unavailable }: { memories: Memory[]; unavailable: boolean }) {
-  const [id, setId] = useState(memories[0]?.id ?? "");
+export default function Verify({ memories, unavailable, requestedId }: { memories: Memory[]; unavailable: boolean; requestedId?: string }) {
+  const [id, setId] = useState(requestedId ?? memories[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<(ProofResult & { totalMs?: number; tampered?: boolean }) | null>(null);
   const selected = memories.find(m => m.id === id);
@@ -26,6 +26,7 @@ export default function Verify({ memories, unavailable }: { memories: Memory[]; 
   return <section className={styles.proof} aria-labelledby="memory-title" aria-busy={busy}>
     <div className={styles.sectionHeading}><h2 id="memory-title">A memory without the memory.</h2><span className={styles.eyebrow}>Hashes only · public</span></div>
     <p>Check that a memory commitment belongs to a root recorded on Solana. The content stays private. Inclusion does not prove the memory is true.</p>
+    {requestedId && <p role="status">{selected ? `Exact conversation memory selected: ${selected.id}. Verify inclusion below; selection alone is not a chain verdict.` : "The requested conversation memory is not in this read projection. No unrelated memory has been selected and no proof verdict is available."}</p>}
     {selected ? <>
       <div className={styles.commitment}>
         <label>Sealed memory · epoch {selected.epoch}

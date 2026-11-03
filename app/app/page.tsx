@@ -8,9 +8,19 @@ import {
   type RemoteParticipant,
   type RemoteTrack,
   type RemoteTrackPublication,
+  ParticipantKind,
 } from "livekit-client";
+import { LivingPortrait } from "@/components/living-portrait";
+import type { PortraitState } from "@/components/living-portrait";
+import avatar from "@/assets/soulbound-avatar-meta-preview.webp";
+import styles from "./room.module.css";
+import { VisionTrigger, type VisionObservationView, type VisionStatus } from "./vision-trigger";
+import { fitVisionFrame } from "./vision-frame";
+import { MICROPHONE_PROCESSING, microphoneReport } from "./speaker-mode";
 
+interface RecallSource { id: string; hash: string; epoch: number; root: string }
 interface TurnLine {
+  recallSources?: RecallSource[];
   who: string;
   text: string;
   reply: boolean;
@@ -66,15 +76,151 @@ function newId(prefix: string): string {
 
 export default function Page() {
   const roomRef = useRef<Room | null>(null);
+  const connectionEpochRef = useRef(0);
+  const [connecting, setConnecting] = useState(false);
+  const connectingRef = useRef(false);
   const audioHostRef = useRef<HTMLDivElement | null>(null);
   const audioElsRef = useRef(new Map<string, HTMLMediaElement>());
+  const audioCleanupRef = useRef(new Map<string, () => void>());
+  const agentSidRef = useRef<string | null>(null);
+  const [agentPlayback, setAgentPlayback] = useState<{ track: MediaStreamTrack; element: HTMLMediaElement } | null>(null);
+  const [agentMuted, setAgentMuted] = useState(false);
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState("Not connected. Join the room and speak.");
   const [audioStatus, setAudioStatus] = useState("Character audio: not attached yet.");
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [lines, setLines] = useState<TurnLine[]>([]);
+  const [visualVariant, setVisualVariant] = useState<"soul" | "portrait">("soul");
 
-  // Diagnostic state (opt-in; normal flow unchanged when off).
+  const [micEnabled, setMicEnabled] = useState(false);
+  const [micBusy, setMicBusy] = useState(false);
+  const micBusyRef = useRef(false);
+  const [micSettings, setMicSettings] = useState("Actual microphone settings: not captured yet.");
+
+  // Ticket 008: explicit-trigger vision; construction opens no device/network.
+  const visionTriggerRef = useRef<VisionTrigger | null>(null);
+  const visionStillUrlRef = useRef<string | null>(null);
+  const cameraRef = useRef<MediaStream | null>(null);
+  const cameraGenerationRef = useRef(0);
+  const [visionView, setVisionView] = useState<VisionObservationView | null>(null);
+  const [visionStatus, setVisionStatus] = useState<VisionStatus>("idle");
+  const [visionStill, setVisionStill] = useState<{ url: string; width: number; height: number } | null>(null);
+
+  const clearVisionStill = useCallback(() => {
+    if (visionStillUrlRef.current) URL.revokeObjectURL(visionStillUrlRef.current);
+    visionStillUrlRef.current = null;
+    setVisionStill(null);
+  }, []);
+
+  const cancelCameraCapture = useCallback(() => {
+    cameraGenerationRef.current++;
+    for (const track of cameraRef.current?.getTracks() ?? []) track.stop();
+    cameraRef.current = null;
+    clearVisionStill();
+  }, [clearVisionStill]);
+
+  const discardVision = useCallback(() => {
+    visionTriggerRef.current?.discard();
+    cancelCameraCapture();
+  }, [cancelCameraCapture]);
+
+  const captureVisionFrame = useCallback(async (triggerId: string): Promise<Uint8Array> => {
+    const epoch = connectionEpochRef.current;
+    const generation = ++cameraGenerationRef.current;
+    clearVisionStill();
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    // Permission may resolve after leave/unmount; never use that late stream.
+    const video = document.createElement("video");
+    let captureTimeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      if (generation !== cameraGenerationRef.current || epoch !== connectionEpochRef.current) throw new Error("capture cancelled");
+      cameraRef.current = stream;
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      const ready = async () => {
+        await video.play();
+        if (!video.videoWidth) {
+          await new Promise((resolve) => video.addEventListener("loadedmetadata", resolve, { once: true }));
+        }
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      };
+      await Promise.race([ready(), new Promise<never>((_, reject) => {
+        captureTimeout = setTimeout(() => reject(new Error("capture timeout")), 10000);
+      })]);
+      if (generation !== cameraGenerationRef.current || cameraRef.current !== stream || epoch !== connectionEpochRef.current) throw new Error("capture cancelled");
+      // Ticket 034: bounded canvas-encode helper — up to 16 dimension×quality
+      // candidates, fail-closed if none fits the 48 KiB envelope bound.
+      const result = await fitVisionFrame(
+        (ctx, w, h) => ctx.drawImage(video, 0, 0, w, h),
+        video.videoWidth,
+        video.videoHeight,
+        triggerId,
+      );
+      if (generation !== cameraGenerationRef.current || cameraRef.current !== stream || epoch !== connectionEpochRef.current) {
+        // Ticket 034: clear the fitted frame before bailing out so a cancelled
+        // capture does not retain raw frame bytes.
+        result.frame.fill(0);
+        throw new Error("capture cancelled");
+      }
+      const url = URL.createObjectURL(result.blob);
+      visionStillUrlRef.current = url;
+      setVisionStill({ url, width: result.width, height: result.height });
+      // Return raw frame bytes — VisionTrigger.look() builds the envelope
+      // via buildVisionFrameEnvelope to enforce the 48 KiB bound (Ticket 034).
+      return result.frame;
+    } finally {
+      clearTimeout(captureTimeout);
+      for (const track of stream.getTracks()) track.stop();
+      video.srcObject = null;
+      if (cameraRef.current === stream) cameraRef.current = null;
+    }
+  }, [clearVisionStill]);
+
+  const refreshMicrophone = useCallback((room: Room) => {
+    const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track;
+    setMicEnabled(room.localParticipant.isMicrophoneEnabled);
+    setMicSettings(microphoneReport(
+      navigator.mediaDevices?.getSupportedConstraints?.() ?? {},
+      track?.mediaStreamTrack.getSettings(),
+    ));
+  }, []);
+
+  const toggleMicrophone = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room || micBusyRef.current) return;
+    micBusyRef.current = true;
+    setMicBusy(true);
+    try {
+      await room.localParticipant.setMicrophoneEnabled(!room.localParticipant.isMicrophoneEnabled, MICROPHONE_PROCESSING);
+      if (roomRef.current === room) refreshMicrophone(room);
+    } catch {
+      if (roomRef.current === room) setStatus("Microphone change failed. Check browser permission and retry.");
+    } finally {
+      micBusyRef.current = false;
+      setMicBusy(false);
+    }
+  }, [refreshMicrophone]);
+
+  // ---- Ticket 022: independent portrait state (NOT tied to diagnostics) ----
+  const [localSpeaking, setLocalSpeaking] = useState(false);
+  const [awaitingReply, setAwaitingReply] = useState(false);
+  const [portraitResetToken, setPortraitResetToken] = useState(0);
+  const wasLocalSpeakingRef = useRef(false);
+  const awaitingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Derive portrait state from connection + independent state signals.
+  const portraitState: PortraitState = !connected
+    ? "disconnected"
+    : audioBlocked
+      ? "error"
+      : localSpeaking
+        ? "listening"
+        : awaitingReply
+          ? "thinking"
+          : "idle"; // LivingPortrait promotes to speaking only from actual energy.
+
+  // ---- Diagnostic state (opt-in; normal flow unchanged when off) ----
   const [diagEnabled, setDiagEnabled] = useState(false);
   const [codeRevision, setCodeRevision] = useState("");
   const [timeoutMsInput, setTimeoutMsInput] = useState("30000");
@@ -91,6 +237,27 @@ export default function Page() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmatchedRef = useRef<string[]>([]);
   const timeoutRef = useRef(30000);
+
+  // Inferred thinking starts ONLY on local active-speaker true -> false,
+  // never on joining or diagnostic controls. No precise backend state exists.
+  useEffect(() => {
+    const ended = wasLocalSpeakingRef.current && !localSpeaking;
+    wasLocalSpeakingRef.current = localSpeaking;
+    if (!connected || localSpeaking) {
+      setAwaitingReply(false);
+      if (awaitingTimerRef.current) clearTimeout(awaitingTimerRef.current);
+    } else if (ended) {
+      setAwaitingReply(true);
+      if (awaitingTimerRef.current) clearTimeout(awaitingTimerRef.current);
+      awaitingTimerRef.current = setTimeout(() => setAwaitingReply(false), 30000);
+    }
+  }, [localSpeaking, connected]);
+
+  const noteMeasuredSpeech = useCallback((speaking: boolean) => {
+    if (!speaking) return;
+    setAwaitingReply(false);
+    if (awaitingTimerRef.current) clearTimeout(awaitingTimerRef.current);
+  }, []);
 
   const syncAttempts = useCallback((next: DiagAttempt[]) => {
     attemptsRef.current = next;
@@ -109,9 +276,6 @@ export default function Page() {
     setAudioStatus("Character audio: playing.");
     setAudioBlocked(false);
     const cur = currentRef.current;
-    // Stamp even after the text commit finished the attempt: first audio
-    // normally arrives after visible text, so gating on `pending` lost
-    // every markerToAudioPlaying sample in the first live export.
     if (cur && cur.browser.audioPlayingAtMs === null) {
       const updated: DiagAttempt = {
         ...cur,
@@ -124,7 +288,7 @@ export default function Page() {
 
   const noteAudioAttached = useCallback(() => {
     const at = performance.now();
-    setAudioStatus("Character audio: attached, waiting for playback. Use headphones.");
+    setAudioStatus("Character audio: attached, waiting for playback. Keep speaker volume moderate.");
     const cur = currentRef.current;
     if (cur && cur.browser.audioAttachedAtMs === null) {
       const updated: DiagAttempt = {
@@ -137,15 +301,21 @@ export default function Page() {
   }, [upsertAttempt]);
 
   const detachAllAudio = useCallback(() => {
-    for (const el of audioElsRef.current.values()) {
-      el.pause();
-      el.remove();
-    }
+    for (const cleanup of audioCleanupRef.current.values()) cleanup();
+    audioCleanupRef.current.clear();
     audioElsRef.current.clear();
+    agentSidRef.current = null;
+    setAgentPlayback(null);
+    setAgentMuted(false);
+    setLocalSpeaking(false);
+    setMicEnabled(false);
+    setMicSettings("Actual microphone settings: not captured yet.");
+    setAwaitingReply(false);
+    if (awaitingTimerRef.current) clearTimeout(awaitingTimerRef.current);
+    setPortraitResetToken((t) => t + 1);
   }, []);
 
   const startAudio = useCallback(async () => {
-    // Explicit user activation for autoplay policies (Ticket 003 Gate C).
     try {
       await roomRef.current?.startAudio();
       for (const el of audioElsRef.current.values()) await el.play();
@@ -158,17 +328,22 @@ export default function Page() {
   }, []);
 
   const disconnect = useCallback(async () => {
-    detachAllAudio();
-    await roomRef.current?.disconnect();
+    connectionEpochRef.current++;
+    connectingRef.current = false;
+    setConnecting(false);
+    discardVision();
+    visionTriggerRef.current = null;
+    const room = roomRef.current;
     roomRef.current = null;
+    room?.removeAllListeners();
+    detachAllAudio();
+    await room?.disconnect();
     setConnected(false);
     setStatus("Disconnected.");
     setAudioStatus("Character audio: detached.");
-  }, [detachAllAudio]);
+  }, [detachAllAudio, discardVision]);
 
   const finishWithDomCommit = useCallback((turnId: string) => {
-    // DOM commit proxy: two rAFs after the state update that rendered the
-    // reply. This is not guaranteed physical paint.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const cur = attemptsRef.current.find((x) => x.turnId === turnId);
       if (!cur || !cur.pending) return;
@@ -185,15 +360,36 @@ export default function Page() {
   }, [upsertAttempt]);
 
   const connect = useCallback(async () => {
+    if (connectingRef.current || roomRef.current) return;
+    connectingRef.current = true;
+    setConnecting(true);
+    const epoch = ++connectionEpochRef.current;
     try {
       setStatus("Connecting\u2026");
       const res = await fetch("/api/token?room=soulbound");
-      const data = (await res.json()) as { token?: string; error?: string };
+      const data = (await res.json()) as { token?: string; url?: string; error?: string };
+      if (connectionEpochRef.current !== epoch) return;
       if (!data.token) throw new Error(data.error ?? "no token returned");
-      const url = process.env.NEXT_PUBLIC_LIVEKIT_URL ?? "ws://localhost:7880";
+      const url = data.url ?? process.env.NEXT_PUBLIC_LIVEKIT_URL ?? "ws://localhost:7880";
       const room = new Room();
       roomRef.current = room;
       room.on(RoomEvent.DataReceived, (payload: Uint8Array, _p?: RemoteParticipant, _k?: unknown, topic?: string) => {
+        if (topic === "voice-status") {
+          try {
+            const msg = JSON.parse(new TextDecoder().decode(payload)) as { code?: string };
+            const messages: Record<string, string> = {
+              "turn-failed": "Reply failed. Please try that sentence again.",
+              "transcription-closed": "Speech recognition disconnected. Leave and rejoin the room.",
+              "transcription-failed": "Speech recognition failed. Leave and rejoin the room.",
+            };
+            if (msg.code && messages[msg.code]) {
+              setStatus(messages[msg.code]);
+              setAudioStatus("Character audio: unavailable for this turn.");
+              setAwaitingReply(false);
+            }
+          } catch { /* malformed status packets ignored */ }
+          return;
+        }
         if (topic === "latency-publish") {
           try {
             const msg = JSON.parse(new TextDecoder().decode(payload)) as { type?: string; turnId?: string; publishMs?: number | null };
@@ -219,11 +415,16 @@ export default function Page() {
           } catch { /* ignore malformed diagnostic packets */ }
           return;
         }
+        if (topic === "vision-observation") {
+          visionTriggerRef.current?.handleObservation(payload);
+          return;
+        }
         if (topic !== "turn") return;
         const receiptAt = performance.now();
         try {
           const rec = JSON.parse(new TextDecoder().decode(payload)) as {
             speaker: string | null; kind: string; transcript: string; reply: string; model: string;
+            recallSources?: RecallSource[];
             diag?: { runId: string; turnId: string } | null;
             timing?: AgentTimingExport & { firstTokenMs: number | null };
             tts?: { status: string; provider: string | null; sentences: number; error: string | null };
@@ -238,12 +439,15 @@ export default function Page() {
                   : `Character audio: TTS ${rec.tts.status}${rec.tts.error ? ` — ${rec.tts.error}` : ""}. Text reply preserved.`,
             );
           }
+          const recallSources = Array.isArray(rec.recallSources) ? rec.recallSources.slice(0, 10).filter(s =>
+            s && /^[0-9a-f-]{36}$/i.test(s.id) && /^[0-9a-f]{64}$/.test(s.hash) &&
+            /^[0-9a-f]{64}$/.test(s.root) && Number.isSafeInteger(s.epoch) && s.epoch >= 0
+          ).map(s => ({ id: s.id, hash: s.hash, epoch: s.epoch, root: s.root })) : [];
           setLines((prev) => [
             ...prev,
             { who: `diarized speaker=${rec.speaker ?? "?"} (${rec.kind})`, text: rec.transcript, reply: false },
-            { who: `SOULBOUND \u00b7 ${rec.model}`, text: rec.reply, reply: true },
+            { who: `SOULBOUND \u00b7 ${rec.model}`, text: rec.reply, reply: true, recallSources },
           ]);
-          // Join agent timing by opaque turn ID only; never by transcript text.
           const cur = currentRef.current;
           if (cur && rec.diag?.turnId === cur.turnId) {
             const joined: DiagAttempt = {
@@ -254,7 +458,7 @@ export default function Page() {
                 vtSpeechEndToCompleteMs: rec.timing.vtSpeechEndToCompleteMs ?? null,
                 vtCompleteToSparkMs: rec.timing.vtCompleteToSparkMs ?? null,
                 sparkMs: rec.timing.sparkMs ?? null,
-                publishMs: null, // known only after publish resolves; follow-up joins it
+                publishMs: null,
                 firstTokenMs: rec.timing.firstTokenMs ?? null,
                 sparkFirstTokenMs: rec.timing.sparkFirstTokenMs ?? null,
                 firstSentenceMs: rec.timing.firstSentenceMs ?? null,
@@ -267,7 +471,6 @@ export default function Page() {
             upsertAttempt(joined);
             finishWithDomCommit(cur.turnId);
           } else if (cur && !rec.diag?.turnId) {
-            // A reply arrived without diagnostic correlation: do not guess.
             unmatchedRef.current.push(`unmatched-browser-${receiptAt}`);
           }
         } catch { /* ignore malformed data packets */ }
@@ -277,45 +480,159 @@ export default function Page() {
       // Start audio control (startAudio below), never silent silence.
       room.on(
         RoomEvent.TrackSubscribed,
-        (track: RemoteTrack, publication: RemoteTrackPublication) => {
+        (track: RemoteTrack, publication: RemoteTrackPublication, participant?: RemoteParticipant) => {
           if (track.kind !== Track.Kind.Audio) return;
+          // Exact AGENT kind. Name fallback only when kind metadata is absent;
+          // a named STANDARD/SIP/other participant can never drive the portrait.
+          const isAgent = participant?.kind === ParticipantKind.AGENT ||
+            (participant?.kind == null && publication.trackName === "soulbound-voice");
+          // Only one selected agent track may be audible; no peer/duplicate path.
+          if (!isAgent) return;
+          const sid = publication.trackSid;
+          if (agentSidRef.current && agentSidRef.current !== sid) {
+            if (publication.trackName !== "soulbound-voice") return;
+            audioCleanupRef.current.get(agentSidRef.current)?.();
+            audioCleanupRef.current.delete(agentSidRef.current);
+            audioElsRef.current.delete(agentSidRef.current);
+          }
+          audioCleanupRef.current.get(sid)?.();
           const el = track.attach() as HTMLMediaElement;
-          el.addEventListener("playing", noteAudioPlaying);
-          audioElsRef.current.set(publication.trackSid, el);
+          const selected = true;
+          if (selected) {
+            agentSidRef.current = sid;
+            setAgentMuted(publication.isMuted);
+            setAgentPlayback({ track: track.mediaStreamTrack, element: el });
+            setPortraitResetToken((t) => t + 1);
+            noteAudioAttached();
+          }
+          const playing = () => { if (agentSidRef.current === sid) noteAudioPlaying(); };
+          if (isAgent) el.addEventListener("playing", playing);
+          audioElsRef.current.set(sid, el);
           (audioHostRef.current ?? document.body).appendChild(el);
-          noteAudioAttached();
+          audioCleanupRef.current.set(sid, () => {
+            el.removeEventListener("playing", playing);
+            el.pause();
+            track.detach(el); // detach, NEVER stop this shared remote track
+            el.remove();
+          });
           void el.play().catch(() => {
+            if (agentSidRef.current !== sid || audioElsRef.current.get(sid) !== el) return;
             setAudioBlocked(true);
-            setAudioStatus("Character audio: autoplay blocked. Click Start audio, then replay speech. Headphones recommended.");
+            setAudioStatus("Character audio: autoplay blocked. Click Start audio, then speak again.");
           });
         },
       );
       room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, publication: RemoteTrackPublication) => {
-        for (const el of track.detach() as HTMLMediaElement[]) el.remove();
+        audioCleanupRef.current.get(publication.trackSid)?.();
+        audioCleanupRef.current.delete(publication.trackSid);
         audioElsRef.current.delete(publication.trackSid);
+        if (agentSidRef.current === publication.trackSid) {
+          agentSidRef.current = null;
+          setAgentPlayback(null);
+          setAgentMuted(false);
+          setAwaitingReply(false);
+          setPortraitResetToken((t) => t + 1);
+        }
       });
       room.on(RoomEvent.Disconnected, () => {
+        room.removeAllListeners();
+        if (roomRef.current !== room) return;
+        roomRef.current = null;
+        connectionEpochRef.current++;
+        connectingRef.current = false;
+        setConnecting(false);
+        discardVision();
+        visionTriggerRef.current = null;
         detachAllAudio();
         setConnected(false);
         setStatus("Disconnected.");
       });
+      room.on(RoomEvent.TrackMuted, (publication) => {
+        if (publication.trackSid !== agentSidRef.current) return;
+        setAgentMuted(true);
+        setAwaitingReply(false);
+        setPortraitResetToken((t) => t + 1);
+      });
+      room.on(RoomEvent.TrackUnmuted, (publication) => {
+        if (publication.trackSid !== agentSidRef.current) return;
+        setAgentMuted(false);
+        setPortraitResetToken((t) => t + 1);
+      });
+      room.on(RoomEvent.Reconnecting, () => {
+        discardVision();
+        setConnected(false);
+        setLocalSpeaking(false);
+        setAwaitingReply(false);
+        setPortraitResetToken((t) => t + 1);
+      });
+      room.on(RoomEvent.Reconnected, () => {
+        refreshMicrophone(room);
+        setConnected(true);
+      });
+      room.on(RoomEvent.LocalTrackPublished, () => refreshMicrophone(room));
+      room.on(RoomEvent.LocalTrackUnpublished, () => refreshMicrophone(room));
+      // Ticket 022: detect local speaker for "listening" portrait state.
+      room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+        setLocalSpeaking(
+          speakers.some((s) => s.sid === room.localParticipant.sid),
+        );
+      });
       await room.connect(url, data.token);
-      await room.localParticipant.setMicrophoneEnabled(true);
+      if (connectionEpochRef.current !== epoch || roomRef.current !== room) return;
+      visionTriggerRef.current = new VisionTrigger({
+        source: { capture: captureVisionFrame, cancel: cancelCameraCapture },
+        transport: {
+          publishFrame: async (envelope) => {
+            if (roomRef.current !== room || connectionEpochRef.current !== epoch) throw new Error("disconnected");
+            await room.localParticipant.publishData(envelope as Uint8Array<ArrayBuffer>, { reliable: true, topic: "vision-frame" });
+          },
+        },
+        onStatus: (s) => {
+          setVisionStatus(s);
+          if (s === "idle") setVisionView(null);
+          if (s === "unavailable") clearVisionStill();
+        },
+        onView: setVisionView,
+      });
+      await room.localParticipant.setMicrophoneEnabled(true, MICROPHONE_PROCESSING);
+      refreshMicrophone(room);
+      if (connectionEpochRef.current !== epoch || roomRef.current !== room) return;
       setConnected(true);
       setStatus("Connected. Speak \u2014 your words will appear below.");
     } catch (err) {
-      setStatus(`Could not connect: ${(err as Error).message}`);
+      if (connectionEpochRef.current !== epoch) return;
+      const room = roomRef.current;
+      roomRef.current = null;
+      room?.removeAllListeners();
+      discardVision();
+      visionTriggerRef.current = null;
+      detachAllAudio();
+      await room?.disconnect();
+      setConnected(false);
+      setStatus("Could not connect. Check local LiveKit configuration and browser microphone permission.");
+    } finally {
+      if (connectionEpochRef.current === epoch) {
+        connectingRef.current = false;
+        setConnecting(false);
+      }
     }
-  }, [detachAllAudio, finishWithDomCommit, noteAudioAttached, noteAudioPlaying, upsertAttempt]);
+  }, [detachAllAudio, discardVision, captureVisionFrame, cancelCameraCapture, clearVisionStill, refreshMicrophone, finishWithDomCommit, noteAudioAttached, noteAudioPlaying, upsertAttempt]);
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (awaitingTimerRef.current) clearTimeout(awaitingTimerRef.current);
+    connectionEpochRef.current++;
+    const room = roomRef.current;
+    roomRef.current = null;
+    room?.removeAllListeners();
+    discardVision();
+    visionTriggerRef.current = null;
     detachAllAudio();
-    void roomRef.current?.disconnect();
-  }, [detachAllAudio]);
+    void room?.disconnect();
+  }, [detachAllAudio, discardVision]);
 
   const measuredCount = attempts.filter((a) => !a.isWarmup).length;
-  const nextIndex = attempts.length === 0 ? 0 : measuredCount + 1; // 0=warm-up
+  const nextIndex = attempts.length === 0 ? 0 : measuredCount + 1;
   const nextLabel = attempts.length === 0 ? "warm-up" : nextIndex <= 20 ? `turn ${nextIndex} of 20` : "done (20 measured)";
 
   const startTurn = useCallback(async () => {
@@ -345,7 +662,7 @@ export default function Page() {
     try {
       const arm = new TextEncoder().encode(JSON.stringify({ type: "arm", runId: runIdRef.current, turnId: attempt.turnId }));
       await room.localParticipant.publishData(arm, { reliable: true, topic: "latency-diag" });
-    } catch { /* agent may be absent; the attempt will time out and be counted */ }
+    } catch { /* agent may be absent */ }
   }, [phase, timeoutMsInput, upsertAttempt]);
 
   const finishedSpeaking = useCallback(() => {
@@ -437,37 +754,171 @@ export default function Page() {
   };
 
   return (
-    <main>
-      <h1>SOULBOUND</h1>
-      <p className="sub">Talk to it and it changes \u2014 and every change is provable.</p>
-      <p><a href="/life" style={{ color: "#b7e4c7" }}>Inspect its life &amp; proof →</a></p>
-      <div className="stage">
-        <div className="avatar" aria-label="Character placeholder">S</div>
-        <div>
-          <p className="status" role="status">{status}</p>
-          <button onClick={connected ? disconnect : connect}>{connected ? "Leave" : "Join room"}</button>
-          {" "}
-          <button onClick={startAudio} disabled={!connected}>Start audio</button>
-          <p className="status" role="status">{audioStatus}</p>
+    <main className={styles.room}>
+      <header className={styles.header}>
+        <a className={styles.brand} href="/" aria-label="SOULBOUND room">
+          <svg width="23" height="27" viewBox="0 0 23 27" fill="none" aria-hidden="true">
+            <path d="M3 23V12a8.5 8.5 0 0 1 17 0v11H3Z" stroke="currentColor" />
+            <path d="M8 12v5m7-5v5M1 21l21-4" stroke="currentColor" />
+          </svg>
+          SOULBOUND<span className={styles.brandDivider}>/</span><span className={styles.roomWord}>THE ROOM</span>
+        </a>
+        <a className={styles.proofLink} href="/life">Life &amp; proof <span aria-hidden="true">↗</span></a>
+      </header>
+
+      <section className={styles.experience} aria-label="Voice room">
+        <div className={styles.stageTop}>
+          <span className={styles.stageIndex}>01 <span>/</span> A presence, not a profile.</span>
+          <div className={styles.visualSelector} role="group" aria-label="Character visual">
+            <button aria-pressed={visualVariant === "soul"} onClick={() => setVisualVariant("soul")}>Warden</button>
+            <button aria-pressed={visualVariant === "portrait"} onClick={() => setVisualVariant("portrait")}>Portrait</button>
+          </div>
+        </div>
+        <div className={styles.stage}>
+          <p className={`${styles.marginNote} ${styles.leftNote}`}><span>THE MEDIUM</span>Voice + vision<br /><span className={styles.noteRule} />A conversation.<br />Not a command line.</p>
+          <div className={styles.character} data-variant={visualVariant}>
+            <LivingPortrait
+              state={portraitState}
+              agentTrack={agentMuted ? null : agentPlayback?.track ?? null}
+              playbackElement={agentPlayback?.element ?? null}
+              assetSrc={avatar.src}
+              resetToken={portraitResetToken}
+              onSpeakingChange={noteMeasuredSpeech}
+              variant={visualVariant}
+            />
+          </div>
+          <p className={`${styles.marginNote} ${styles.rightNote}`}><span>THE CONNECTION</span><span className={styles.connection} data-connected={connected}>{connecting ? "Connecting" : connected ? "Connected" : "Offline"}</span><span className={styles.noteRule} />Your microphone opens<br />only when you join.</p>
+        </div>
+
+        <div className={styles.controls}>
+          <button className={styles.keycap} onClick={connected ? disconnect : connect} disabled={connecting}>
+            <span className={styles.keyFace}><span className={styles.keyIcon} aria-hidden="true">{connected ? "↗" : "+"}</span>{connecting ? "Connecting…" : connected ? "Leave" : "Join room"}<span className={styles.keyCorner} aria-hidden="true">↵</span></span>
+          </button>
+          <div className={styles.audioControls}>
+            <button onClick={startAudio} disabled={!connected}>Start audio <span aria-hidden="true">↗</span></button>
+            <button onClick={toggleMicrophone} disabled={!connected || micBusy} aria-pressed={!micEnabled} aria-label={micEnabled ? "Mute microphone" : "Unmute microphone"}>
+              {micBusy ? "Updating mic…" : micEnabled ? "Mute mic" : "Unmute mic"}
+            </button>
+            <span>Speaker mode · moderate volume</span>
+          </div>
+        </div>
+
+        <div className={styles.liveStatus}>
+          <p role="status">{status}</p>
+          <p role="status">{audioStatus}</p>
           {audioBlocked && (
-            <p role="alert" style={{ fontSize: 13 }}>
-              Audio playback is blocked by the browser. Click Start audio (user activation), use headphones, then speak again.
+            <p className={styles.audioAlert} role="alert">
+              Audio playback is blocked by the browser. Click Start audio (user activation), then speak again.
             </p>
           )}
-          <div ref={audioHostRef} aria-hidden="true" />
+          <details>
+            <summary>Speaker &amp; microphone settings</summary>
+            <p>Requested: echoCancellation=true, noiseSuppression=true, autoGainControl=true.</p>
+            <p>{micSettings}</p>
+            <p>Use moderate speaker volume and keep the built-in mic away from speaker output. Processing cannot guarantee no echo. If feedback persists, mute the mic while the character speaks, then unmute.</p>
+          </details>
         </div>
-      </div>
+        <div ref={audioHostRef} aria-hidden="true" />
 
-      <section aria-label="Latency diagnostic (Ticket 019)" style={{ marginTop: 24, border: "1px solid #2a2f2c", padding: 16 }}>
+        <div className={styles.headline}>
+          <p className={styles.eyebrow}>A persistent voice + vision character</p>
+          <h1>Talk to it.<br /><span>And it changes.</span></h1>
+          <p className={styles.tagline}>— and every change is provable.</p>
+        </div>
+      </section>
+
+      <div className={styles.belowStage}>
+        <section className={styles.transcript} aria-labelledby="transcript-title">
+          <div className={styles.sectionHeading}>
+            <h2 id="transcript-title">The conversation</h2><span>LIVE TRANSCRIPT</span>
+          </div>
+          <div className={styles.modelInfo}><span>Live response model: {modelId ?? "not reported yet"}</span><span>Turn cost: unavailable</span></div>
+          <p className={styles.stackInfo}>Architecture (not live health): Meta Voice Transcribe · Meta Spark conversation/vision · SAM 3.1 segmentation adapter integrated, live configuration/entitlement unverified · VoxCPM2 voice synthesis by OpenBMB (not Meta).</p>
+          <div className={styles.log} aria-live="polite" aria-relevant="additions text">
+            {lines.length === 0 && <p className={styles.emptyTranscript}>An empty room. An open beginning.<span>Join and speak. Your conversation will appear here.</span></p>}
+            {lines.map((line, i) => (
+              <div key={i} className={`${styles.line} ${line.reply ? styles.reply : ""}`}>
+                <span className={styles.who}>{line.who}</span>
+                {line.text}
+                {line.reply && <div>
+                  {line.recallSources?.length ? <>
+                    <p>Sealed memory supplied to this reply · chain inclusion not yet checked. This does not prove the model used it.</p>
+                    {line.recallSources.map(source => <details key={source.id}>
+                      <summary>Memory {source.id} · epoch {source.epoch}</summary>
+                      <p>Leaf hash: <code>{source.hash}</code></p>
+                      <p>Local sealed root: <code>{source.root}</code></p>
+                      <a href={`/life?memory=${encodeURIComponent(source.id)}`} target="_blank" rel="noreferrer">Verify this exact memory on Solana ↗</a>
+                    </details>)}
+                  </> : <p>No sealed memory supplied to this reply. Session context is not an on-chain commitment.</p>}
+                </div>}
+              </div>
+            ))}
+          </div>
+        </section>
+
+      <section className={styles.vision} aria-labelledby="vision-title">
+        <div className={styles.sectionHeading}><h2 id="vision-title">A look, not a live feed</h2><span>EXPLICIT CAPTURE</span></div>
+        <p>Nothing is captured or sent before your click. One frame goes to SAM 3.1 segmentation and Meta Spark vision. Camera tracks stop after capture; the local still stays only until discarded, next look, or disconnect.</p>
+        <p>Guest room access is not owner authentication. Do not show sensitive material.</p>
+        <div className={styles.visionActions}>
+          <button onClick={() => { clearVisionStill(); void visionTriggerRef.current?.look(); }} disabled={!connected || visionStatus === "capturing" || visionStatus === "sent"}>Look at this</button>
+          <button onClick={discardVision} disabled={visionStatus === "idle" && !visionStill}>Discard view</button>
+        </div>
+        <p role="status">
+          {visionStatus === "idle" && "Vision idle — no camera or vision request before click."}
+          {visionStatus === "capturing" && "Capturing one frame…"}
+          {visionStatus === "sent" && "Frame sent once; waiting for observation. No automatic retries."}
+          {visionStatus === "failed" && "That look did not complete. Private memory linkage was not confirmed; no saved observation is claimed."}
+          {visionStatus === "unavailable" && "Vision unavailable — camera denied, disconnected, timed out, or path not configured. No success claimed."}
+          {visionStatus === "observed" && (visionView?.durable ? "Observation received and linked to private memory." : "Observation received; not saved to durable memory.")}
+        </p>
+        {visionView && (
+          <div className={styles.visionResult}>
+            {visionStill && (
+              <div className={styles.visionImage}>
+                <img src={visionStill.url} alt="Single explicitly captured frame" />
+                {visionView.mask_overlay && (
+                  <svg aria-hidden="true" viewBox={`0 0 ${visionView.mask_overlay.width} ${visionView.mask_overlay.height}`} preserveAspectRatio="none" style={{
+                    position: "absolute",
+                    left: `${(visionView.mask_overlay.left / visionStill.width) * 100}%`,
+                    top: `${(visionView.mask_overlay.top / visionStill.height) * 100}%`,
+                    width: `${((visionView.mask_overlay.right - visionView.mask_overlay.left) / visionStill.width) * 100}%`,
+                    height: `${((visionView.mask_overlay.bottom - visionView.mask_overlay.top) / visionStill.height) * 100}%`,
+                  }}>
+                    <path d={visionView.mask_overlay.svg} fill="rgba(123,216,143,0.35)" stroke="#7bd88f" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+                  </svg>
+                )}
+                {visionView.bbox && !visionView.mask_overlay && (
+                  <div aria-hidden="true" title="Bounding-box highlight (mask outline unavailable)" style={{
+                    position: "absolute", boxSizing: "border-box", border: "2px solid #7bd88f",
+                    left: `${(visionView.bbox[0] / visionStill.width) * 100}%`,
+                    top: `${(visionView.bbox[1] / visionStill.height) * 100}%`,
+                    width: `${(visionView.bbox[2] / visionStill.width) * 100}%`,
+                    height: `${(visionView.bbox[3] / visionStill.height) * 100}%`,
+                  }} />
+                )}
+              </div>
+            )}
+            <p><strong>{visionView.object_label}</strong>{visionView.synthetic && " · SYNTHETIC FIXTURE"}</p>
+            <p>{visionView.summary}</p>
+            <p>{visionView.mask_overlay ? "SAM mask outline (transient)" : visionView.bbox ? "Bounding-box highlight — mask outline unavailable" : "No highlight available"}</p>
+            <p>Confidence {visionView.confidence.toFixed(2)} · frame {visionView.frame_hash.slice(0, 12)}… · mask {visionView.mask_ref.slice(0, 16)}…</p>
+          </div>
+        )}
+      </section>
+
+      <details className={styles.diagnostics}>
+        <summary><span>Room diagnostics</span><span className={styles.summaryHint}>Timing, quality &amp; export <span aria-hidden="true">＋</span></span></summary>
+        <section aria-label="Latency diagnostic (Ticket 019)" className={styles.diagnosticBody}>
         <label>
           <input type="checkbox" checked={diagEnabled} onChange={(e) => setDiagEnabled(e.target.checked)} />
-          {" "}Latency diagnostic (Ticket 019 baseline, extended by Ticket 003 with TTS/playback proxies \u2014 still not REQ-40 first-audio proof)
+          {" "}Latency diagnostic (Ticket 019 baseline, extended by Ticket 003 with TTS/playback proxies — still not REQ-40 first-audio proof)
         </label>
         {diagEnabled && (
           <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
             <p style={{ margin: 0, fontSize: 13, color: "#9aa39c" }}>
-              One warm-up, then 20 measured turns. Per turn: Start turn \u2192 speak \u2192
-              click Finished speaking the instant you stop \u2192 wait for the reply.
+              One warm-up, then 20 measured turns. Per turn: Start turn → speak →
+              click Finished speaking the instant you stop → wait for the reply.
               The Finished click is a manual proxy, not true speech-end. Slow/failed
               turns count; never replace them. Export is metadata-only.
             </p>
@@ -482,9 +933,9 @@ export default function Page() {
               <button onClick={exportJson}>Export timing JSON</button>
             </div>
             <p role="status" style={{ margin: 0, fontSize: 13 }}>
-              warm-up: {diagCounts.warmup} \u00b7 measured: {diagCounts.measured}/20 \u00b7
-              success: {diagCounts.success} \u00b7 failed: {diagCounts.failed} \u00b7 timeout: {diagCounts.timeout}
-              {phase !== "idle" ? ` \u00b7 in progress: ${phase}` : ""}
+              warm-up: {diagCounts.warmup} · measured: {diagCounts.measured}/20 ·
+              success: {diagCounts.success} · failed: {diagCounts.failed} · timeout: {diagCounts.timeout}
+              {phase !== "idle" ? ` · in progress: ${phase}` : ""}
             </p>
             <fieldset>
               <legend>Aggregate quality counts (review replies locally; counts only in export)</legend>
@@ -494,16 +945,10 @@ export default function Page() {
             </fieldset>
           </div>
         )}
-      </section>
-
-      <section className="log" aria-live="polite">
-        {lines.map((line, i) => (
-          <div key={i} className={line.reply ? "line reply" : "line"}>
-            <span className="who">{line.who}</span>
-            {line.text}
-          </div>
-        ))}
-      </section>
+        </section>
+      </details>
+      <footer className={styles.footer}><span>SOULBOUND / A CONTINUITY EXPERIMENT</span><span>Warden is procedural, not a likeness rig.</span></footer>
+      </div>
     </main>
   );
 }

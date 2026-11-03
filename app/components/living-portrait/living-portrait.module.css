@@ -1,0 +1,109 @@
+/* Ticket 022: deliberately scoped; no global styles. */
+.pageStage {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 22px;
+  border: 1px solid #244343;
+  border-radius: 20px;
+  background: radial-gradient(ellipse at 12% 10%, #12302f 0, #111b1d 52%, #101718 100%);
+  box-shadow: 0 18px 60px #0004;
+}
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 280px;
+  max-width: 100%;
+}
+.panel {
+  position: relative;
+  width: 280px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  border-radius: 18px;
+  overflow: hidden;
+  isolation: isolate;
+  background: #0a1518;
+  border: 1px solid #315354;
+  box-shadow: 0 12px 32px #0007;
+  perspective: 900px;
+  transition: border-color 0.3s ease;
+}
+.panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, #02101333, transparent 25%, transparent 70%, #02101366);
+}
+.panel[data-state="listening"] { border-color: #85c7c2; }
+.panel[data-state="thinking"] { border-color: #94a7c6; }
+.panel[data-state="disconnected"], .panel[data-state="error"] { border-color: #34464a; }
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+.float .image { animation: drift 8s ease-in-out infinite alternate; }
+@keyframes drift {
+  from { transform: scale(1.015) translateY(0) rotateX(calc(var(--lp-tilt-x, 0) * 1deg)) rotateY(calc(var(--lp-tilt-y, 0) * 1deg)); }
+  to { transform: scale(1.015) translateY(-1.5px) rotateX(calc(var(--lp-tilt-x, 0) * 1deg)) rotateY(calc(var(--lp-tilt-y, 0) * 1deg)); }
+}
+.halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: var(--lp-halo-opacity, 0);
+  box-shadow: inset 0 0 38px 8px #55dcd1;
+  background: radial-gradient(ellipse at center, transparent 48%, #42b9b955);
+}
+.label {
+  color: #acbfbe;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.label[data-state="speaking"] { color: #a3e9df; }
+.label[data-state="listening"] { color: #b9e6dc; }
+.label[data-state="thinking"] { color: #c2cee8; }
+.label[data-state="listening"]::before { content: "◉ "; }
+.label[data-state="thinking"]::before { content: "◇ "; }
+.note { margin: 0; max-width: 280px; color: #a1b4b4; font-size: 11px; line-height: 1.5; text-align: center; }
+.modeBadge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  width: fit-content;
+  max-width: calc(100% - 20px);
+  z-index: 4;
+  background: #06151cde;
+  color: #d0e6e3;
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 4px 7px;
+  border: 1px solid #48707388;
+  border-radius: 5px;
+}
+.rigWrapper { position: relative; width: 280px; max-width: 100%; }
+.rigCanvas { position: absolute; top: 1px; left: 1px; width: calc(100% - 2px); aspect-ratio: 1; z-index: 1; border-radius: 17px; overflow: hidden; pointer-events: none; }
+.rigCanvas canvas { display: block; width: 100%; height: 100%; }
+.reducedMotion .image { animation: none; transform: none; }
+.reducedMotion .halo { display: none; }
+.reducedMotion .panel { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .image { animation: none !important; transform: none !important; }
+  .panel { transition: none; }
+  .halo { display: none; }
+}
+@media (max-width: 640px) {
+  .pageStage { grid-template-columns: minmax(0, 1fr); justify-items: center; padding: 18px; gap: 18px; }
+}

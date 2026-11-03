@@ -8,7 +8,9 @@ export const metadata = { title: "Life & proof · SOULBOUND", description: "Insp
 const explorer = (id: string) => "https://explorer.solana.com/address/" + encodeURIComponent(id) + "?cluster=devnet";
 const names: Record<string, string> = { trait_vector: "Personality vector", mood: "Mood", life_stage: "Life stage", memory_epoch: "Attribute epoch" };
 
-export default async function LifePage() {
+export default async function LifePage({ searchParams }: { searchParams: Promise<{ memory?: string | string[] }> }) {
+  const params = await searchParams;
+  const requestedId = typeof params.memory === "string" ? params.memory : undefined;
   const data = await getLife(), chain = data?.chain;
   const current = chain?.attributes.find(a => a.key === "trait_vector")?.value ?? null;
   const changed = current !== null && chain?.genesisVector !== null && chain?.genesisVector !== undefined ? current !== chain.genesisVector : null;
@@ -28,7 +30,7 @@ export default async function LifePage() {
       </div>
     </section>
     <div id="evidence" className={styles.evidence} tabIndex={-1}>
-      <Verify memories={data?.memories ?? []} unavailable={!data || data.memoriesUnavailable} />
+      <Verify key={requestedId ?? "default"} requestedId={requestedId} memories={data?.memories ?? []} unavailable={!data || data.memoriesUnavailable} />
       <section className={styles.traits} aria-labelledby="traits-title">
         <div className={styles.sectionHeading}><h2 id="traits-title">How it’s changing</h2><span className={styles.eyebrow}>On-chain · read-only</span></div>
         {attributes.length ? <>
