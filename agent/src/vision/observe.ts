@@ -3,8 +3,15 @@
 // trigger_id is required provenance and is recorded.
 import { discardFrame, frameHashHex } from "./frame.js";
 import type { MaskOverlay, SamSegmenter } from "./sam.js";
-import { buildObservationRequest, type SparkObserver } from "./spark.js";
+import { buildObservationRequest, VisionUnavailableFromSpark, type SparkObserver } from "./spark.js";
 import { validateObservationRecord, type VisionObservationRecord } from "../memory/observation.js";
+
+/** Spark's "I saw nothing" answers: zero confidence, or an unknown label that
+ * says no image/frame arrived. Genuine low-confidence labels are kept. */
+function isDegenerateSparkOutput(o: { object_label: string; observation: string; confidence: number }): boolean {
+  if (o.confidence > 0) return false;
+  return /^unknown$/i.test(o.object_label.trim()) || /\bno (visual |image )?(frame|image)\b/i.test(o.observation);
+}
 
 export interface TriggeredObservation {
   /** Pixel-free provenance record: the only thing that may persist. */
@@ -38,13 +45,20 @@ export async function runTriggeredObservation(
     // SAM 3.1 concept segmentation returns an EMPTY response for generic
     // prompts like "object" (observed live 2026-11-01), which previously
     // failed every look. Same one-Spark + one-SAM call count, reordered.
-    const sparkOut = await deps.spark.observe(buildObservationRequest({
+    const sparkRequest = buildObservationRequest({
       model: "muse-spark-1.3",
       frameBase64: Buffer.from(frame).toString("base64"),
       maskRef: "pre-segmentation",
       frameHash,
       mime: deps.mime,
-    }));
+    });
+    // Live finding 2026-11-03: Spark intermittently answers that it received
+    // no image (label "unknown", confidence 0) for a valid frame. That is not
+    // an observation and must never become a sealed memory. Exactly one
+    // bounded retry, only for that degenerate answer; otherwise fail.
+    let sparkOut = await deps.spark.observe(sparkRequest);
+    if (isDegenerateSparkOutput(sparkOut)) sparkOut = await deps.spark.observe(sparkRequest);
+    if (isDegenerateSparkOutput(sparkOut)) throw new VisionUnavailableFromSpark("Spark did not receive or could not read the frame");
     const masks = await deps.sam.segment(frame, sparkOut.object_label);
     const mask = masks.length ? masks.reduce((a, b) => (b.area > a.area ? b : a)) : null;
     // Cookbook 04_structured_output: the pure builder owns the exact wire

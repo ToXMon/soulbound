@@ -339,3 +339,39 @@ test("clients enforce maxRetries: 0 (one accepted trigger = one billable call)",
   assert.ok(sparkBlock.includes("OpenAI"), "spark.ts maxRetries: 0 is within an OpenAI constructor region");
 });
 
+
+test("a degenerate Spark answer is retried once and a good retry becomes the observation", async () => {
+  let calls = 0;
+  const { record } = await runTriggeredObservation(new Uint8Array([1, 2, 3]), {
+    sam: { async segment() { return []; } },
+    spark: { async observe() {
+      calls += 1;
+      return calls === 1
+        ? { object_label: "unknown", observation: "No image frame provided; unable to determine salient object", confidence: 0 }
+        : { object_label: "blue mug", observation: "A blue mug on a table.", confidence: 0.9 };
+    } },
+    characterId: "synthetic-character",
+    triggerId: "degenerate-retry-1",
+  });
+  assert.equal(calls, 2, "exactly one retry");
+  assert.equal(record.object_label, "blue mug");
+});
+
+test("two degenerate Spark answers fail the look instead of producing an 'unknown' memory", async () => {
+  let calls = 0;
+  const frame = new Uint8Array([4, 5, 6]);
+  await assert.rejects(
+    runTriggeredObservation(frame, {
+      sam: { async segment() { throw new Error("SAM must not run"); } },
+      spark: { async observe() {
+        calls += 1;
+        return { object_label: "unknown", observation: "No visual frame available to identify salient object", confidence: 0 };
+      } },
+      characterId: "synthetic-character",
+      triggerId: "degenerate-fail-1",
+    }),
+    /did not receive or could not read the frame/,
+  );
+  assert.equal(calls, 2, "never more than one retry");
+  assert.deepEqual([...frame], [0, 0, 0], "frame still zeroed on failure");
+});

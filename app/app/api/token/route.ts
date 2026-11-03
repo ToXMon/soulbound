@@ -4,10 +4,15 @@ import { NextRequest, NextResponse } from "next/server";
 const headers = { "Cache-Control": "private, no-store" };
 
 export async function GET(req: NextRequest) {
-  const room = process.env.DEMO_ROOM ?? "soulbound";
-  if (req.nextUrl.searchParams.get("room") && req.nextUrl.searchParams.get("room") !== room) {
+  const baseRoom = process.env.DEMO_ROOM ?? "soulbound";
+  if (req.nextUrl.searchParams.get("room") && req.nextUrl.searchParams.get("room") !== baseRoom) {
     return NextResponse.json({ error: "Room unavailable." }, { status: 403, headers });
   }
+  // One room per join. LiveKit dispatches the agent only when a room is
+  // created, so a room that outlives a worker restart (or a stale tab) would
+  // otherwise leave every later guest alone with no character (observed live
+  // 2026-11-03). Rooms empty out on their own.
+  const room = `${baseRoom}-${crypto.randomUUID().slice(0, 8)}`;
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
   const url = process.env.LIVEKIT_PUBLIC_URL ?? process.env.NEXT_PUBLIC_LIVEKIT_URL;
