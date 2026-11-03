@@ -113,7 +113,15 @@ export class MemoryStore {
           identity = typeof holder.processIdentity === "string" ? holder.processIdentity : null;
         } catch { /* unreadable locks remain protected */ }
         const currentIdentity = holderPid > 0 ? await processIdentity(holderPid) : null;
-        const differentLifetime = identity !== null && currentIdentity !== null && identity !== currentIdentity;
+        const own = await processIdentity(process.pid);
+        // identity = boot:pid-namespace:start. A lock written under another boot
+        // or PID namespace (a previous container on the same volume) cannot be
+        // checked by pid: the number may now name an unrelated, unreadable
+        // process here (observed live 2026-11-03: a stale lock "held" forever
+        // by a root-owned pid in the new container). Treat it as not ours.
+        const domain = (id: string) => id.slice(0, id.lastIndexOf(":"));
+        const otherDomain = identity !== null && own !== null && domain(identity) !== domain(own);
+        const differentLifetime = otherDomain || (identity !== null && currentIdentity !== null && identity !== currentIdentity);
         if (!holderPid || (!differentLifetime && pidAlive(holderPid)))
           throw new Error(`memory store: writer lock held by pid ${holderPid || "unknown"} — single-writer per namespace; refusing competing writer`);
         const after = await stat(lockPath);

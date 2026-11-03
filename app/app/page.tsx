@@ -78,9 +78,13 @@ function describeVisionReason(reason: VisionUnavailableReason | null): string {
   switch (reason) {
     case "camera-denied": return "the browser blocked the camera. Click the camera icon in the address bar, allow it for this site, then try again.";
     case "no-camera": return "no camera was found on this device.";
+    case "camera-unavailable": return "this browser does not expose a usable camera API. Reload in the dedicated Chrome profile and try again.";
     case "camera-prompt": return "the camera permission prompt was not answered within 20 seconds. Allow the camera when Chrome asks, then try again.";
     case "camera-busy": return "the camera is in use by another app or tab. Close it (Zoom, Photo Booth, other tabs) and try again.";
     case "camera-no-frames": return "the camera opened but delivered no picture within 8 seconds. Check that the lens is uncovered and no other app is using it, then try again.";
+    case "camera-playback": return "the camera stream opened, but Chrome could not start video playback. Close other camera apps/tabs, reload this page, then try again.";
+    case "camera-draw": return "the camera produced a frame, but the browser could not draw it. Reload the page and try again.";
+    case "camera-encode": return "the camera frame could not be encoded as an image. Close other camera apps/tabs and try again.";
     case "camera-timeout": return "the camera took too long to start. Try again.";
     case "frame-too-large": return "the captured frame was too large to send.";
     case "send-failed": return "the frame could not be sent to the room.";
@@ -144,9 +148,14 @@ export default function Page() {
     const epoch = connectionEpochRef.current;
     const generation = ++cameraGenerationRef.current;
     clearVisionStill();
-    // Stage 1: camera acquisition (permission prompt / device busy). Bounded,
-    // and a stream that arrives after the deadline is stopped, never used.
-    const acquisition = navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    // Stage 1: camera acquisition. The browser may throw synchronously, and
+    // late permission resolution must stop its stream rather than leak it.
+    let acquisition: Promise<MediaStream>;
+    try {
+      acquisition = navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    } catch (error) {
+      throw new Error(`camera-acquire:${(error as { name?: string })?.name ?? "unknown"}`);
+    }
     let acquireTimer: ReturnType<typeof setTimeout> | undefined;
     let stream: MediaStream;
     try {
@@ -156,6 +165,9 @@ export default function Page() {
           reject(new Error("camera-acquire-timeout"));
         }, 20000);
       })]);
+    } catch (error) {
+      const name = (error as { name?: string })?.name ?? "unknown";
+      throw new Error(`camera-acquire:${name}`);
     } finally { clearTimeout(acquireTimer); }
     // Permission may resolve after leave/unmount; never use that late stream.
     const video = document.createElement("video");
@@ -170,7 +182,8 @@ export default function Page() {
       // instead of requestAnimationFrame, which browsers pause for hidden or
       // occluded windows and would hang the look forever.
       const ready = async () => {
-        await video.play();
+        try { await video.play(); }
+        catch (error) { throw new Error(`camera-playback:${(error as { name?: string })?.name ?? "unknown"}`); }
         const deadline = Date.now() + 8000;
         while (!(video.readyState >= 2 && video.videoWidth > 0)) {
           if (Date.now() > deadline) throw new Error("camera-no-frames");
@@ -184,19 +197,32 @@ export default function Page() {
       if (generation !== cameraGenerationRef.current || cameraRef.current !== stream || epoch !== connectionEpochRef.current) throw new Error("capture cancelled");
       // Ticket 034: bounded canvas-encode helper — up to 16 dimension×quality
       // candidates, fail-closed if none fits the 48 KiB envelope bound.
-      const result = await fitVisionFrame(
-        (ctx, w, h) => ctx.drawImage(video, 0, 0, w, h),
-        video.videoWidth,
-        video.videoHeight,
-        triggerId,
-      );
+      let result: Awaited<ReturnType<typeof fitVisionFrame>>;
+      try {
+        result = await fitVisionFrame(
+          (ctx, w, h) => {
+            try { ctx.drawImage(video, 0, 0, w, h); }
+            catch (error) { throw new Error(`camera-draw:${(error as { name?: string })?.name ?? "unknown"}`); }
+          },
+          video.videoWidth,
+          video.videoHeight,
+          triggerId,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (message.startsWith("camera-draw:")) throw error;
+        if (/no candidate fits/.test(message)) throw new Error("camera-frame-too-large");
+        throw new Error(`camera-encode:${(error as { name?: string })?.name ?? "unknown"}`);
+      }
       if (generation !== cameraGenerationRef.current || cameraRef.current !== stream || epoch !== connectionEpochRef.current) {
         // Ticket 034: clear the fitted frame before bailing out so a cancelled
         // capture does not retain raw frame bytes.
         result.frame.fill(0);
         throw new Error("capture cancelled");
       }
-      const url = URL.createObjectURL(result.blob);
+      let url: string;
+      try { url = URL.createObjectURL(result.blob); }
+      catch (error) { throw new Error(`camera-preview:${(error as { name?: string })?.name ?? "unknown"}`); }
       visionStillUrlRef.current = url;
       setVisionStill({ url, width: result.width, height: result.height });
       // Return raw frame bytes — VisionTrigger.look() builds the envelope

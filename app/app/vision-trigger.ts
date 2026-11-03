@@ -36,7 +36,7 @@ export type VisionStatus = "idle" | "capturing" | "sent" | "observed" | "failed"
 
 /** Why a look ended "unavailable". Stable, non-sensitive categories only. */
 export type VisionUnavailableReason =
-  | "camera-denied" | "no-camera" | "camera-prompt" | "camera-busy" | "camera-no-frames" | "camera-timeout" | "frame-too-large"
+  | "camera-denied" | "no-camera" | "camera-unavailable" | "camera-prompt" | "camera-busy" | "camera-no-frames" | "camera-playback" | "camera-draw" | "camera-encode" | "camera-timeout" | "camera-preview" | "frame-too-large"
   | "send-failed" | "no-response" | "disconnected" | "unknown";
 
 export function classifyVisionError(e: unknown): VisionUnavailableReason {
@@ -45,9 +45,19 @@ export function classifyVisionError(e: unknown): VisionUnavailableReason {
   if (name === "NotAllowedError" || name === "SecurityError") return "camera-denied";
   if (name === "NotFoundError" || name === "OverconstrainedError") return "no-camera";
   if (name === "NotReadableError") return "camera-busy";
+  if (/camera-acquire:NotAllowedError|camera-acquire:SecurityError/.test(msg)) return "camera-denied";
+  if (/camera-acquire:NotFoundError|camera-acquire:OverconstrainedError/.test(msg)) return "no-camera";
+  if (/camera-acquire:NotReadableError/.test(msg)) return "camera-busy";
+  if (/camera-acquire:(TypeError|NotSupportedError)/.test(msg)) return "camera-unavailable";
   if (/camera-acquire-timeout/.test(msg)) return "camera-prompt";
+  if (/camera-playback/.test(msg)) return "camera-playback";
+  if (/camera-draw/.test(msg)) return "camera-draw";
+  if (/camera-encode/.test(msg)) return "camera-encode";
+  if (/camera-preview/.test(msg)) return "camera-preview";
   if (/camera-no-frames/.test(msg)) return "camera-no-frames";
+  if (/capture cancelled/.test(msg)) return "disconnected";
   if (/capture timeout/.test(msg)) return "camera-timeout";
+  if (/camera-frame-too-large/.test(msg)) return "frame-too-large";
   if (/exceeds|too large|fit/i.test(msg)) return "frame-too-large";
   if (/publish timeout/.test(msg)) return "send-failed";
   if (/disconnected/.test(msg)) return "disconnected";

@@ -15,6 +15,7 @@ import { SpeakerSessions } from "./session-context.js";
 import { MemoryQueue } from "./memory/queue.js";
 import { SparkExtractor, type SourceTurn } from "./memory/extract.js";
 import { createMetaSamClient } from "./vision/sam.js";
+import { RecentLookSession, lookAcknowledgement } from "./recent-look.js";
 import { createSparkObserver } from "./vision/spark.js";
 import { handleVisionFrame, VISION_FRAME_TOPIC, VISION_OBSERVATION_TOPIC } from "./vision/handler.js";
 import { observationToExtraction } from "./memory/observation.js";
@@ -40,18 +41,19 @@ export default defineAgent({
     let turnSeq = 0;
     // Ticket 036: per-room-job bounded session context (ephemeral, never sealed).
     const sessionCtx = new SpeakerSessions();
+    const recentLook = new RecentLookSession();
     if (memCfg) {
       // Live finding 2026-11-03: a second session (new tab, judge, or a room
       // that is still draining) hit the single-writer lock and the whole job
       // died, so the guest got no character at all. Wait briefly for a closing
-      // session, then run THIS session without durable memory rather than
-      // failing voice and vision. The single-writer guarantee is unchanged.
-      for (let attempt = 0; attempt < 20 && !memoryStore; attempt++) {
+      // session, then (about 5s, inside LiveKit's 10s job window) run THIS session
+      // without durable memory rather than failing voice and vision. The single-writer guarantee is unchanged.
+      for (let attempt = 0; attempt < 5 && !memoryStore; attempt++) {
         try {
           memoryStore = await MemoryStore.open(memCfg.storePath, memCfg.namespace);
         } catch (e) {
           if (!/writer lock held/.test((e as Error).message)) throw e;
-          if (attempt === 19) console.log("[memory] DISABLED for this session: another live session holds the single writer lock; voice and vision continue without durable memory");
+          if (attempt === 4) console.log("[memory] DISABLED for this session: another live session holds the single writer lock; voice and vision continue without durable memory");
           else await new Promise((r) => setTimeout(r, 1000));
         }
       }
@@ -67,6 +69,7 @@ export default defineAgent({
     const voice = voiceConfigFromEnv();
     let publisher: LiveKitAudioPublisher | null = null;
     let turnAbort: AbortController | null = null;
+    let turnsInFlight = 0;
     if (ttsProvider) {
       console.log(`[tts] provider=${ttsProvider.name} format=${ttsProvider.format.sampleRate}Hz/${ttsProvider.format.channels}ch seed=${voice.seed ?? "none"} (endpoint not yet proven until Gate B smoke)`);
     } else {
@@ -80,6 +83,7 @@ export default defineAgent({
       publisher?.clear();
       const controller = new AbortController();
       turnAbort = controller;
+      turnsInFlight++;
       try {
       const rec = await runTurn(turn, sttMs, {
         vtTiming, diag,
@@ -88,6 +92,7 @@ export default defineAgent({
         sink: publisher,
         signal: controller.signal,
         speakerSessions: sessionCtx,
+        recentLook,
       });
       if (controller.signal.aborted || turnAbort !== controller) return;
       // Ticket 036: append completed turn to session context (ephemeral, not sealed memory).
@@ -123,6 +128,8 @@ export default defineAgent({
           await ctx.agent?.publishData(new TextEncoder().encode(JSON.stringify({ code: "turn-failed" })),
             { reliable: true, topic: "voice-status" }).catch(() => undefined);
         }
+      } finally {
+        turnsInFlight--;
       }
     }, (code) => {
       console.error(`[voice] ${code}`);
@@ -159,6 +166,27 @@ export default defineAgent({
           characterId: visionCharacterId,
           publish: async (data) => {
             await ctx.agent?.publishData(data, { reliable: true, topic: VISION_OBSERVATION_TOPIC });
+          },
+          onObservation: (record) => {
+            // The character can now talk about what it just saw (session-only,
+            // expiring). Never stored by this call and never sealed.
+            recentLook.set(record.object_label, record.summary);
+            const line = lookAcknowledgement(record.object_label);
+            // Say it only if the voice path is idle: never talk over a reply.
+            if (!line || !ttsProvider || !publisher || turnsInFlight > 0 || !voice.description.trim()) return;
+            const sink = publisher;
+            void (async () => {
+              try {
+                for await (const chunk of ttsProvider.synthesize({ text: line, voiceDescription: voice.description, seed: voice.seed })) {
+                  if (turnsInFlight > 0) { sink.clear(); return; }
+                  await sink.publishPcm(chunk);
+                }
+                await sink.flush?.();
+                console.log("[vision] spoken acknowledgement published");
+              } catch {
+                console.log("[vision] spoken acknowledgement failed; visual observation remains available");
+              }
+            })();
           },
           persist: memoryStore
             ? async (record) => {
@@ -237,6 +265,7 @@ export default defineAgent({
     ctx.addShutdownCallback(async () => {
       bindRecallStore(null);
       sessionCtx.reset();
+      recentLook.clear();
       turnAbort?.abort();
       vt.close();
       if (publisher) await publisher.close();

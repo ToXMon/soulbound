@@ -52,12 +52,13 @@ export function conversationMessages(
   sessionHistory?: SessionMessage[],
   speakerHistory?: SpeakerHistory,
   onRecall?: (sources: RecallSource[]) => void,
+  cameraContext = "",
 ) {
   const recall = recallForTurn(turn.text, kind);
   onRecall?.(recall.sources ?? []);
   if (recall.recordIds.length) console.log(`[recall] record_ids=${JSON.stringify(recall.recordIds)}`);
   const msgs: { role: "system" | "user" | "assistant"; content: string }[] = [
-    { role: "system" as const, content: systemPrompt(kind) + recall.context },
+    { role: "system" as const, content: systemPrompt(kind) + recall.context + cameraContext },
   ];
   // Ticket 036: inject prior session pairs between system and current user.
   // Prior messages are data in their original roles, never system instructions.
@@ -82,6 +83,8 @@ export interface StreamCallbacks {
   /** Ticket 036: prior user/assistant pairs from the same session. */
   sessionHistory?: SessionMessage[];
   speakerHistory?: SpeakerHistory;
+  /** Expiring camera note from this room only; never durable memory. */
+  cameraContext?: string;
 }
 
 /**
@@ -103,7 +106,7 @@ export async function decideStream(
       model,
       stream: true,
       reasoning_effort: reasoningEffort() as unknown as ChatCompletionReasoningEffort,
-      messages: conversationMessages(turn, kind, cb.sessionHistory, cb.speakerHistory, sources => { recallSources = sources; }),
+      messages: conversationMessages(turn, kind, cb.sessionHistory, cb.speakerHistory, sources => { recallSources = sources; }, cb.cameraContext),
     },
     cb.signal ? { signal: cb.signal } : undefined,
   );

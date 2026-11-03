@@ -145,6 +145,10 @@ export interface VisionFrameDeps {
   linkSidecar?: (entry: VisionSidecarEntry) => Promise<void>;
   gate?: SenderInflightGate;
   now?: Date;
+  /** Called once with the validated record after persistence succeeded and
+   * just before the observation is published. Session-only consumers (the
+   * character talking about what it saw); must not throw into the pipeline. */
+  onObservation?: (record: VisionObservationRecord) => void;
 }
 
 export type VisionFrameOutcome =
@@ -315,6 +319,7 @@ export async function handleVisionFrame(
         durable = true;
       }
     }
+    try { deps.onObservation?.(record); } catch (e) { console.log(`[vision] onObservation failed: ${(e as Error).message}`); }
     try {
       // Overlay travels ONLY in this correlated response: transient browser
       // highlight, never persisted, sidecar-stored, logged, or memorized.
