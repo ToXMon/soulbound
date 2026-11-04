@@ -62,7 +62,7 @@ $EDITOR .env                       # set MODEL_API_KEY; for voice also TTS_BASE_
 docker compose up --build
 ```
 
-Open http://localhost:3000 and sign in as `operator` with the `DEMO_ACCESS_PASSWORD` value from `.env`. The app is on 3000 and LiveKit on 7880 to 7882, all bound to 127.0.0.1. Do not rebind them to `0.0.0.0`.
+A cold build from a clean cache succeeded on the Apple Silicon test machine. After `up`, the app was still refusing connections 15 seconds in under emulation, so give it a minute before you treat a connection error as a failure. Open http://localhost:3000 and sign in as `operator` with the `DEMO_ACCESS_PASSWORD` value from `.env`. The app is on 3000 and LiveKit on 7880 to 7882, all bound to 127.0.0.1. Do not rebind them to `0.0.0.0`.
 
 A boot check with a placeholder key and no real credentials confirmed that the three containers start, the app answers 401 without the login and 200 with it, the token route issues a room token, and the worker registers with LiveKit. Voice, vision and speech output were not exercised, because they need real credentials.
 
