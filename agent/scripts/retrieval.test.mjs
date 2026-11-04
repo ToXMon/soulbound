@@ -202,3 +202,24 @@ test("direct recall-call timing: 200 calls over 1000 synthetic sealed records, p
     assert.ok(p50 < 30, `recall p50 ${p50}ms exceeds budget`);
   } finally { bindRecallStore(null); }
 });
+
+test("self-questions recall recent records without naming them; lexical hits rank first; misses stay empty", () => {
+  const records = [record("project", "The user is building a project called Kestrelwing.", 1, 0), record("colour", "The user's favourite colour is teal.", 0, 3), record("old", "The user likes long walks.", 0, 9)];
+  for (const q of ["What am I working on?", "What do you know about me?", "Do you remember me?", "What have we been doing?"]) {
+    assert.deepEqual(ids(retrieve(records, q, options)), ["project", "colour", "old"], q);
+  }
+  assert.deepEqual(ids(retrieve(records, "What colour do you know about me?", options))[0], "colour");
+  assert.deepEqual(ids(retrieve(records, "what do you remember about me", { ...options, topK: 1 })), ["project"]);
+  for (const q of ["hello are you there", "volcano", "what is this?", "what do you see"]) assert.equal(retrieve(records, q, options).context, "", q);
+});
+
+test("self-question fallback keeps the owner gate and sealed-only rule", async () => {
+  await fixture(async store => {
+    await store.appendExtracted("synthetic-session:1", [item("The user is building a synthetic garden robot.")]);
+    bindRecallStore(store);
+    assert.equal(recallForTurn("what am I working on?", "owner", ENV).context, "", "unsealed records never recalled");
+    await store.sealEpoch();
+    assert.equal(recallForTurn("what am I working on?", "owner", ENV).recordIds.length, 1);
+    assert.equal(recallForTurn("what am I working on?", "stranger", ENV).context, "", "strangers never get owner memories");
+  });
+});

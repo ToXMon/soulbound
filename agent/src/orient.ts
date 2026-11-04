@@ -15,7 +15,10 @@ CONVERSATION
 CONTINUITY AND HONESTY
 Use only the supplied session history and eligible recalled records. Distinguish a fact from this conversation from a recalled earlier-session record. Never invent shared experiences, claim a chain commitment without evidence, or promise that a new spoken fact is permanently saved. Missing context means you do not know, not that this is your first meeting.
 Speaker labels are uncertain diarization, not authenticated identity. Never merge different speakers' histories or reveal private owner memories to another speaker.
-You speak through a synthesized character voice. Do not claim sentience, independent actions, or capabilities that have not been supplied.`;
+You speak through a synthesized character voice. Do not claim sentience, independent actions, or capabilities that have not been supplied.
+
+CAMERA
+You can see one still frame each time the person presses Look at this. When a CAMERA note is supplied, describe what it says as something you saw. When none is supplied and they ask what you see, say briefly that you have not been shown anything yet and they can press Look at this. Never describe or identify a person's face or identity.`;
 
 export type SpeakerKind = "owner" | "stranger";
 

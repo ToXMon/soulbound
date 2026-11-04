@@ -63,6 +63,35 @@ test("runTurn hands only this room's fresh look to the reply stream", async () =
   assert.equal(seen[2], undefined, "no look session, no camera context");
 });
 
+test("a question asked mid-look waits for the observation, bounded, and never when idle", async () => {
+  const room = new RecentLookSession();
+  const t0 = Date.now();
+  await room.waitForPending(5_000);
+  assert.ok(Date.now() - t0 < 50, "idle room never waits");
+  room.begin();
+  assert.equal(room.pending(), true);
+  setTimeout(() => { room.set("red mug", "A red mug held up."); room.settle(); }, 30);
+  await room.waitForPending(5_000);
+  assert.equal(room.pending(), false);
+  assert.match(room.context(), /red mug/, "the waiting turn sees the finished look");
+  room.begin();
+  const t1 = Date.now();
+  await room.waitForPending(60);
+  assert.ok(Date.now() - t1 < 1_000, "a stuck look releases the turn at the bound");
+  room.settle();
+  room.begin();
+  const cleared = room.waitForPending(5_000);
+  room.clear();
+  await cleared;
+  assert.equal(room.pending(), false, "room shutdown releases waiters");
+});
+
+test("persona tells the character how its camera works without a look", () => {
+  const msgs = conversationMessages({ text: "what do you see?", speaker: "A", confidence: 0.9 }, "owner");
+  assert.match(msgs[0].content, /press(es)? Look at this/);
+  assert.doesNotMatch(msgs[0].content, /CAMERA:/, "no fabricated camera note");
+});
+
 test("spoken acknowledgement is short, grammatical, and skipped for unknown", () => {
   assert.equal(lookAcknowledgement("TV remote control"), "I see a TV remote control.");
   assert.equal(lookAcknowledgement("a green plant"), "I see a green plant.");

@@ -14,6 +14,8 @@ const clean = (s: string, max: number): string =>
 
 export class RecentLookSession {
   private current: RecentLook | null = null;
+  private inFlight = 0;
+  private waiters: (() => void)[] = [];
 
   set(label: string, summary: string, now = Date.now()): void {
     const l = clean(label, MAX_LABEL);
@@ -21,7 +23,42 @@ export class RecentLookSession {
     this.current = l ? { label: l, summary: s, at: now } : null;
   }
 
-  clear(): void { this.current = null; }
+  /** A frame was received and is being analysed. Pair with settle(). */
+  begin(): void { this.inFlight++; }
+
+  /** The look finished (observed or failed); release any waiting turn. */
+  settle(): void {
+    this.inFlight = Math.max(0, this.inFlight - 1);
+    if (this.inFlight === 0) this.release();
+  }
+
+  pending(): boolean { return this.inFlight > 0; }
+
+  /**
+   * Live finding 2026-11-04: asking "what is this?" right after clicking
+   * Look at this reached Spark before SAM + Spark vision finished, so the
+   * character said it could not see. Hold that turn briefly instead. Bounded:
+   * never blocks speech for more than maxMs, resolves at once when idle.
+   */
+  waitForPending(maxMs: number): Promise<void> {
+    if (!this.pending() || maxMs <= 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => { clearTimeout(timer); resolve(); };
+      const timer = setTimeout(() => {
+        this.waiters = this.waiters.filter((w) => w !== done);
+        resolve();
+      }, maxMs);
+      this.waiters.push(done);
+    });
+  }
+
+  private release(): void {
+    const ws = this.waiters;
+    this.waiters = [];
+    for (const w of ws) w();
+  }
+
+  clear(): void { this.current = null; this.inFlight = 0; this.release(); }
 
   get(now = Date.now()): RecentLook | null {
     const look = this.current;

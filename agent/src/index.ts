@@ -21,6 +21,9 @@ import { handleVisionFrame, VISION_FRAME_TOPIC, VISION_OBSERVATION_TOPIC } from 
 import { observationToExtraction } from "./memory/observation.js";
 import { VisionSidecarStore } from "./memory/vision-sidecar.js";
 
+// Longest a voice turn waits for an in-progress look (SAM + Spark vision).
+const LOOK_WAIT_MS = 12_000;
+
 export default defineAgent({
   entry: async (ctx) => {
     // Ticket 019 diagnostic correlation: the browser arms ONE turn at a time
@@ -85,6 +88,12 @@ export default defineAgent({
       turnAbort = controller;
       turnsInFlight++;
       try {
+      // A question asked while a look is still being analysed waits for it
+      // (bounded), so "what is this?" is answered from the frame.
+      if (recentLook.pending()) {
+        await recentLook.waitForPending(LOOK_WAIT_MS);
+        if (controller.signal.aborted || turnAbort !== controller) return;
+      }
       const rec = await runTurn(turn, sttMs, {
         vtTiming, diag,
         tts: ttsProvider,
@@ -160,6 +169,7 @@ export default defineAgent({
       if (topic === VISION_FRAME_TOPIC) {
         const p = participant as { identity?: unknown } | null | undefined;
         const identity = typeof p?.identity === "string" ? p.identity : undefined;
+        recentLook.begin();
         void handleVisionFrame(payload, identity, {
           sam: visionSam,
           spark: visionSpark,
@@ -218,7 +228,9 @@ export default defineAgent({
         }).then((outcome) => {
           if (outcome.ok) console.log(`[vision] observed trigger=${outcome.triggerId} frame=${outcome.frameHash} durable=${outcome.durable} sender=${identity ?? "?"}`);
           else console.log(`[vision] rejected sender=${identity ?? "?"} code=${outcome.code}`);
-        });
+        }).catch(() => {
+          console.log("[vision] look failed unexpectedly");
+        }).finally(() => recentLook.settle());
         return;
       }
       if (topic !== "latency-diag") return;

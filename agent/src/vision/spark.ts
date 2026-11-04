@@ -42,7 +42,7 @@ export function buildObservationRequest(input: {
       {
         role: "system",
         content:
-          "You are the vision observer for a persistent character. Given one explicitly captured frame and its segmentation mask reference, identify the single most salient object. Return only structured JSON matching the schema. Do not identify people or faces.",
+          "You are the vision observer for a persistent character. Given one explicitly captured frame and its segmentation mask reference, identify the single most salient object. Prefer an object the person is holding up or presenting to the camera over the person, their clothing, or the background. Return only structured JSON matching the schema. Do not identify people or faces; if no object other than a person is visible, use the label \"person\" and describe only the scene, never personal traits.",
       },
       {
         role: "user",
