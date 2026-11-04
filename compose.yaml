@@ -1,11 +1,82 @@
+# Credentialed local stack: LiveKit + app + voice worker, one image.
+#
+#   ./scripts/init-compose-env.sh      # creates .env with generated local secrets
+#   $EDITOR .env                       # add your Meta key (and VoxCPM2 endpoint for voice)
+#   docker compose up --build
+#
+# Everything binds to 127.0.0.1 only. LiveKit runs WITHOUT --dev, so LiveKit's
+# public devkey/secret pair is never active: the keys come from .env. This is a
+# local rehearsal stack, not a hosted deployment. It needs real Meta credentials
+# (see README); it cannot run live inference without them.
+
+x-image: &image
+  # The Dockerfile pins linux/amd64 base images; on Apple Silicon this runs under emulation.
+  platform: linux/amd64
+  image: soulbound-local:dev
+  build:
+    context: .
+
+x-memory-env: &memory-env
+  MEMORY_ENABLED: ${MEMORY_ENABLED:-true}
+  MEMORY_STORE_PATH: /data/memories
+  MEMORY_OWNER_ID: ${MEMORY_OWNER_ID:-judge-demo}
+  MEMORY_CHARACTER_ID: ${MEMORY_CHARACTER_ID:-warden}
+
 services:
   livekit:
     platform: linux/amd64
     image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
-    command: ["--dev", "--bind", "0.0.0.0", "--node-ip", "127.0.0.1"]
+    command: ["--bind", "0.0.0.0", "--node-ip", "127.0.0.1", "--udp-port", "7882", "--rtc.tcp_port", "7881"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?run scripts/init-compose-env.sh}: ${LIVEKIT_API_SECRET:?run scripts/init-compose-env.sh}"
     ports:
       - "127.0.0.1:7880:7880/tcp"
       - "127.0.0.1:7881:7881/tcp"
       - "127.0.0.1:7882:7882/udp"
-# Local development only. --dev uses LiveKit's PUBLIC devkey / secret pair.
-# Never expose this server or those credentials to the public internet.
+
+  app:
+    <<: *image
+    depends_on: [livekit]
+    environment:
+      <<: *memory-env
+      DEMO_ACCESS_USER: ${DEMO_ACCESS_USER:-operator}
+      DEMO_ACCESS_PASSWORD: ${DEMO_ACCESS_PASSWORD:?run scripts/init-compose-env.sh (needs 24+ characters)}
+      DEMO_ROOM: soulbound
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?run scripts/init-compose-env.sh}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?run scripts/init-compose-env.sh}
+      # What the browser connects to (loopback ws:// is accepted by the token route).
+      LIVEKIT_PUBLIC_URL: ws://localhost:7880
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - soulbound-data:/data
+
+  worker:
+    <<: *image
+    depends_on: [livekit]
+    restart: on-failure:5
+    environment:
+      <<: *memory-env
+      SOULBOUND_SERVICE: worker
+      MODEL_API_KEY: ${MODEL_API_KEY:?set MODEL_API_KEY in .env (Meta Model API key)}
+      MODEL_API_BASE_URL: ${MODEL_API_BASE_URL:-https://api.meta.ai/v1}
+      MODEL_NAME: ${MODEL_NAME:-muse-spark-1.3}
+      MODEL_REASONING_EFFORT: ${MODEL_REASONING_EFFORT:-minimal}
+      MUSE_VT_WS_URL: ${MUSE_VT_WS_URL:-wss://api.meta.ai/v1/asr/realtime}
+      MUSE_VT_MODEL: ${MUSE_VT_MODEL:-muse-voice-transcribe-1.0}
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?run scripts/init-compose-env.sh}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?run scripts/init-compose-env.sh}
+      # Voice output. Leave TTS_BASE_URL and TTS_API_KEY empty for text-only replies;
+      # a voice also needs TTS_VOICE_DESCRIPTION. See README.
+      TTS_PROVIDER: voxcpm2
+      TTS_BASE_URL: ${TTS_BASE_URL:-}
+      TTS_API_KEY: ${TTS_API_KEY:-}
+      TTS_MODEL: ${TTS_MODEL:-openbmb/VoxCPM2}
+      TTS_VOICE_DESCRIPTION: ${TTS_VOICE_DESCRIPTION:-}
+      TTS_SEED: ${TTS_SEED:-42}
+    volumes:
+      - soulbound-data:/data
+
+volumes:
+  soulbound-data:

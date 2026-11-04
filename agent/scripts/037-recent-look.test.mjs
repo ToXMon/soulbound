@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { RecentLookSession, lookAcknowledgement, RECENT_LOOK_TTL_MS } from "../dist/recent-look.js";
 import { conversationMessages } from "../dist/decide.js";
+import { runTurn } from "../dist/pipeline.js";
 
 test("a fresh look becomes labelled, untrusted camera context", () => {
   const room = new RecentLookSession();
@@ -45,6 +46,21 @@ test("the conversation prompt carries this room's look for follow-up questions o
   assert.equal(msgs.at(-1).content, "What do you think of this?");
   const none = conversationMessages({ text: "hello", speaker: "A", confidence: 0.9 }, "owner");
   assert.doesNotMatch(none[0].content, /CAMERA:/);
+});
+
+test("runTurn hands only this room's fresh look to the reply stream", async () => {
+  const seen = [];
+  const streamReply = async (_turn, _kind, cb) => { seen.push(cb.cameraContext); return { text: "ok", model: "fake", latencyMs: 1 }; };
+  const turn = { text: "what is this?", speaker: "A", confidence: 0.9 };
+  const room = new RecentLookSession();
+  const other = new RecentLookSession();
+  room.set("recessed ceiling light", "A round light set into a white ceiling.");
+  await runTurn(turn, 0, { streamReply, recentLook: room });
+  await runTurn(turn, 0, { streamReply, recentLook: other });
+  await runTurn(turn, 0, { streamReply });
+  assert.match(seen[0], /recessed ceiling light/);
+  assert.equal(seen[1], "", "a room with no look sends no camera context");
+  assert.equal(seen[2], undefined, "no look session, no camera context");
 });
 
 test("spoken acknowledgement is short, grammatical, and skipped for unknown", () => {

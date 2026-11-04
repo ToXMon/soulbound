@@ -10,6 +10,7 @@ import { resolveSpeaker, type DiarizedTurn, type SpeakerKind } from "./orient.js
 import { decideStream, type StreamCallbacks, type TurnReply } from "./decide.js";
 import { act, type TurnRecord, type TtsTurnStatus } from "./act.js";
 import type { SessionMessage, SpeakerSessions } from "./session-context.js";
+import type { RecentLookSession } from "./recent-look.js";
 import {
   elapsedMs,
   PUBLISH_PENDING,
@@ -38,6 +39,8 @@ export interface RunTurnOptions {
   /** Ticket 036: prior session pairs for conversation context. */
   sessionHistory?: SessionMessage[];
   speakerSessions?: SpeakerSessions;
+  /** Expiring camera context scoped to this one room job. */
+  recentLook?: RecentLookSession;
 }
 
 // sttMs is preserved from observe (never silently invented here). When the
@@ -68,6 +71,7 @@ export async function runTurn(
     signal: options?.signal,
     sessionHistory: options?.sessionHistory,
     speakerHistory: options?.speakerSessions?.forTurn(turn, kind),
+    cameraContext: options?.recentLook?.context(),
     onFirstToken: () => { if (firstTokenAt === null) firstTokenAt = performance.now(); },
     onDelta: (delta) => {
       if (firstSentenceAt !== null) return;

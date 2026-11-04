@@ -3,6 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 
 const headers = { "Cache-Control": "private, no-store" };
 
+// Production signaling must be wss://. The one exception is a loopback ws://
+// URL for running the container image on the same machine as the browser: it
+// is unreachable from any other host, so it cannot leak a token over the network.
+function signalingAllowed(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.protocol === "wss:" || (u.protocol === "ws:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname));
+  } catch { return false; }
+}
+
 export async function GET(req: NextRequest) {
   const baseRoom = process.env.DEMO_ROOM ?? "soulbound";
   if (req.nextUrl.searchParams.get("room") && req.nextUrl.searchParams.get("room") !== baseRoom) {
@@ -16,7 +27,7 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
   const url = process.env.LIVEKIT_PUBLIC_URL ?? process.env.NEXT_PUBLIC_LIVEKIT_URL;
-  if (!apiKey || !apiSecret || (process.env.NODE_ENV === "production" && !url?.startsWith("wss://"))) {
+  if (!apiKey || !apiSecret || (process.env.NODE_ENV === "production" && !signalingAllowed(url))) {
     return NextResponse.json({ error: "Secure room configuration unavailable." }, { status: 503, headers });
   }
   const at = new AccessToken(apiKey, apiSecret, { identity: `guest-${crypto.randomUUID()}`, ttl: "10m" });

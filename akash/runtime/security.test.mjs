@@ -52,5 +52,20 @@ test('token is bounded, no-store, server-identified and has data grants', async 
   const claims=JSON.parse(Buffer.from(data.token.split('.')[1],'base64url'));
   assert.match(claims.sub,/^guest-/);assert.notEqual(claims.sub,'owner');
   assert.ok(claims.exp-claims.nbf<=610);
-  assert.equal(claims.video.room,'soulbound');assert.equal(claims.video.canPublishData,true);
+  // One room per join (85aeaed): base name plus a short random suffix, never another base room.
+  assert.match(claims.video.room,/^soulbound-[0-9a-f]{8}$/);assert.equal(claims.video.canPublishData,true);
+});
+test('production accepts loopback ws:// only, never a remote or look-alike host', async () => {
+  process.env.NODE_ENV='production';process.env.DEMO_ROOM='soulbound';
+  const get=()=>route(new NextRequest('https://demo.invalid/api/token'));
+  for (const ok of ['ws://localhost:7880','ws://127.0.0.1:7880','ws://[::1]:7880']) {
+    process.env.LIVEKIT_PUBLIC_URL=ok;
+    const response=await get();
+    assert.equal(response.status,200,ok);
+    assert.equal((await response.json()).url,ok);
+  }
+  for (const bad of ['ws://localhost.attacker.invalid:7880','ws://127.0.0.1.attacker.invalid','ws://10.0.0.5:7880','http://localhost:7880','not a url','']) {
+    process.env.LIVEKIT_PUBLIC_URL=bad;
+    assert.equal((await get()).status,503,bad);
+  }
 });
