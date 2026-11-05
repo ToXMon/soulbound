@@ -1,6 +1,6 @@
 # SOULBOUND
 
-Checked against commit `b974bea` on 2026-11-03 · POC: Tolu Shekoni · Meta Global AI Developer Hackathon, Indie track, solo
+Checked against commit `133b179` on 2026-11-04 · POC: Tolu Shekoni · Meta Global AI Developer Hackathon, Indie track, solo
 
 SOULBOUND is an AI character you talk to out loud and show things to through your webcam, and it remembers. What it learns goes into a versioned memory graph. Each sealed batch of memories becomes a Merkle root, and the root history is kept by a program on Solana devnet, so anyone can check that a remembered fact belongs to a committed history without the fact being published. Conversation, vision and memory extraction run on Meta's Muse Spark, Voice Transcribe and SAM 3.1. The voice is OpenBMB's VoxCPM2.
 
@@ -36,12 +36,21 @@ The input is three synthetic sentences run through a deterministic fake extracto
 The automated suites also run offline. They use fakes and fixtures, including a fake camera frame, so they say nothing about live inference. At this commit:
 
 ```sh
-node --test agent/scripts/*.test.mjs                                          # 139 tests: 136 pass, 3 skipped
+node --test agent/scripts/*.test.mjs                                          # 143 tests: 140 pass, 3 skipped
 (cd agent && node --test dist/vision/*.test.js dist/memory/vision-sidecar.test.js)   # 34 pass
 node --experimental-strip-types --test app/components/living-portrait/*.test.ts      # 57 pass
 node --test akash/runtime/security.test.mjs                                   # 4 pass
 pnpm --filter app exec tsc --noEmit --incremental false                       # no errors
 ```
+
+The Solana program has its own LiteSVM suite. It needs Anchor CLI 1.2.1, which a typical host Anchor install (0.30/0.31) cannot build, so it runs in a pinned toolchain image. Build the image from the Dockerfile in [programs/soulbound/BUILD.md](programs/soulbound/BUILD.md) §2 (about 3 GB, and the `anchor-cli` compile takes several minutes), then from the repository root:
+
+```sh
+docker run --rm -v "$PWD/programs/soulbound":/w -w /w sb-anchor:1.2.1 \
+  sh -c 'anchor build && cargo test -p tests -- --nocapture --test-threads=1'
+```
+
+The last recorded run passed 17 of 17 ([independent review](docs/007-independent-review.md), 2026-11-01). `programs/` has not changed since, but the suite was not rerun against this commit. Do not run `anchor test --skip-local-validator`: it tries to deploy to a local validator and never runs the suite.
 
 ### B. Live stack (credentials required)
 
@@ -64,7 +73,7 @@ docker compose up --build
 
 A cold build from a clean cache succeeded on the Apple Silicon test machine. After `up`, the app was still refusing connections 15 seconds in under emulation, so give it a minute before you treat a connection error as a failure. Open http://localhost:3000 and sign in as `operator` with the `DEMO_ACCESS_PASSWORD` value from `.env`. The app is on 3000 and LiveKit on 7880 to 7882, all bound to 127.0.0.1. Do not rebind them to `0.0.0.0`.
 
-A boot check with a placeholder key and no real credentials confirmed that the three containers start, the app answers 401 without the login and 200 with it, the token route issues a room token, and the worker registers with LiveKit. Voice, vision and speech output were not exercised, because they need real credentials.
+A boot check with a placeholder key and no real credentials, rerun from a fresh clone of `133b179` on 2026-11-04, confirmed that the three containers start, the app answers 401 without the login and 200 with it (`/` and `/life`), the token route issues a room token, LiveKit answers on 7880, and the worker logs `registered worker`. Voice, vision and speech output were not exercised, because they need real credentials. Without `MODEL_API_KEY`, Compose stops before starting anything, with `required variable MODEL_API_KEY is missing a value`.
 
 Operational notes:
 
@@ -88,14 +97,14 @@ Use your own non-sensitive object, or a sample you may redistribute, and label a
 
 ## Claims and evidence
 
-Dated evidence comes from files in this repository. "Re-checked" means it was run again against this commit or read live on 2026-11-03.
+Dated evidence comes from files in this repository. "Re-checked" means it was run again against this commit or read live on the date given.
 
 | Claim | Evidence | Kind and date | Limits |
 | --- | --- | --- | --- |
-| Memory store keeps versions, builds Merkle proofs and rejects a tampered record | [memory-demo.mjs](agent/scripts/memory-demo.mjs), [memory tests](agent/scripts/memory.test.mjs) | Re-checked from a fresh clone, 2026-11-03 | Synthetic facts, fake extractor, no network |
-| Automated suites pass | Commands in Path A | Re-checked, 2026-11-03 | Fakes and fixtures only; no live inference |
-| The Anchor program is live on devnet with a genesis character | [docs/devnet.md](docs/devnet.md) | Dated 2026-10-28 to 2026-10-30; program account re-read as executable on 2026-11-03 | Devnet can be reset. Signing keys are not in the repository |
-| Two memory roots are committed on devnet (epoch 0 and epoch 1) | [docs/029](docs/029-memory-identity-linkage.md), [epoch-1 transaction](https://explorer.solana.com/tx/4hYrLRj2Ezu6ygV5zk8n5pCmJ5PomibiTKBADLB9PkicWPDhogaYR5wUJiz7rNwDi1AG1ugq135ig4sCD2X78Nev?cluster=devnet), [history account](https://explorer.solana.com/address/BVF8KRRGK6CV55GaQd4KdJFhYtrKX1GekFdoVpn1AY6p?cluster=devnet) | Dated 2026-11-01. Re-checked 2026-11-03: the transaction is finalized without error, and the history account is owned by the program and contains both roots | Roots are public hashes. Memory contents stay private |
+| Memory store keeps versions, builds Merkle proofs and rejects a tampered record | [memory-demo.mjs](agent/scripts/memory-demo.mjs), [memory tests](agent/scripts/memory.test.mjs) | Re-checked from a fresh clone, 2026-11-04 | Synthetic facts, fake extractor, no network |
+| Automated suites pass | Commands in Path A | Re-checked from a fresh clone, 2026-11-04 | Fakes and fixtures only; no live inference |
+| The Anchor program is live on devnet with a genesis character | [docs/devnet.md](docs/devnet.md) | Dated 2026-10-28 to 2026-10-30; program account re-read as executable on 2026-11-04 | Devnet can be reset. Signing keys are not in the repository |
+| Two memory roots are committed on devnet (epoch 0 and epoch 1) | [docs/029](docs/029-memory-identity-linkage.md), [epoch-1 transaction](https://explorer.solana.com/tx/4hYrLRj2Ezu6ygV5zk8n5pCmJ5PomibiTKBADLB9PkicWPDhogaYR5wUJiz7rNwDi1AG1ugq135ig4sCD2X78Nev?cluster=devnet), [history account](https://explorer.solana.com/address/BVF8KRRGK6CV55GaQd4KdJFhYtrKX1GekFdoVpn1AY6p?cluster=devnet) | Dated 2026-11-01. Re-checked 2026-11-04: the transaction is finalized without error and the history account (6,189 bytes) is owned by the program. The two roots inside it were last decoded on 2026-11-03 | Roots are public hashes. Memory contents stay private |
 | A real memory proves valid against the devnet root, and a tampered copy is rejected | [docs/029](docs/029-memory-identity-linkage.md), [docs/033](docs/033-recovery-and-submission.md) | Owner-observed in a browser on a private deployment, 2026-11-01 and 2026-11-02 | You cannot repeat it from a fresh clone: it needs the private memory contents and the operator login |
 | The character recalls sealed memories in conversation | [ticket 021 review](audit/021-recall-into-conversation/review.md) | Reviewed 2026-10-31 | Sealed, owner-only records. Capture from a fresh microphone was deferred |
 | A multi-turn voice conversation on the deployed build | [owner acceptance](docs/027-owner-voice-acceptance.md), [synthetic-input check](docs/027-end-to-end-voice-evidence.json) | Dated 2026-11-01. The synthetic check used no physical devices and one measurement | No latency, echo or barge-in measurement. The 2026-11-02 recovery check could not repeat it (key rejected, above) |
