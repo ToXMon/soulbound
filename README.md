@@ -155,6 +155,6 @@ Privacy boundaries:
 - The architecture's latency target (first audio p50 under 2.5 seconds) has not been demonstrated. The measured cold first chunk for VoxCPM2 was 11.3 seconds ([docs/030](docs/030-mms-tts-swap.md)).
 - Real-camera recognition rests on one owner report. The camera-size fix has automated tests, not a recorded acceptance run.
 - The Warden visual is procedural and audio-reactive. It is not lip sync or a likeness rig.
-- The repository has no top-level license file yet. Third-party material is listed in [built-vs-borrowed](docs/built-vs-borrowed.md) and [third-party notices](docs/024-third-party-notices.md).
+- Original code is under the [MIT License](LICENSE). Third-party material keeps its own license, and is listed in [built-vs-borrowed](docs/built-vs-borrowed.md) and [third-party notices](docs/024-third-party-notices.md).
 - The [submission checklist](docs/033-recovery-and-submission.md) is dated 2026-11-02 and lists open gates. Later commits address some of them (camera transport, per-join rooms), but those fixes have not been re-accepted on a fresh live run. The submission is not ready until the demo video is recorded and its claims are checked against the table above.
 - Do not publish API keys, operator credentials, signing keys, runtime manifests or personal memories. Some dated reports in `docs/` mention temporary operator-gated tunnel URLs. They are expired or login-protected and are not part of the setup path.
